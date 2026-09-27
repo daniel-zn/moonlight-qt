@@ -13,6 +13,8 @@ MicrophoneCapture::MicrophoneCapture(QObject* parent)
     , m_Streaming(false)
     , m_StopEncoderThread(false)
     , m_Initialized(false)
+    , m_AudioSubsystemInitialized(false)
+    , m_SendFailures(0)
     , m_Enabled(false)
     , m_FirstPacketLogged(false)
     , m_NoiseSuppression(false)
@@ -32,6 +34,10 @@ MicrophoneCapture::~MicrophoneCapture()
     if (m_DeviceId != 0) {
         SDL_CloseAudioDevice(m_DeviceId);
         m_DeviceId = 0;
+    }
+
+    if (m_AudioSubsystemInitialized) {
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
     }
 
     if (m_Encoder != nullptr) {
@@ -60,6 +66,7 @@ bool MicrophoneCapture::initialize(const std::string& deviceName)
                     SDL_GetError());
         return false;
     }
+    m_AudioSubsystemInitialized = true;
 
     int opusError = OPUS_OK;
     m_Encoder = opus_encoder_create(kSampleRate, kChannels, OPUS_APPLICATION_VOIP, &opusError);
@@ -289,8 +296,12 @@ void MicrophoneCapture::encoderLoop()
                         encodedBytes);
         }
         else if (sendResult < 0) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-                        "LiSendMicrophoneOpusDataEx() failed for microphone capture");
+            // Log the first failure and then every 5 seconds' worth of packets
+            if (m_SendFailures++ % 250 == 0) {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                            "Sending microphone audio failed (%d times so far)",
+                            m_SendFailures);
+            }
         }
     }
 }

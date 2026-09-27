@@ -66,6 +66,14 @@ static StreamingPreferences* s_GlobalPrefs;
 
 Q_GLOBAL_STATIC(QReadWriteLock, s_GlobalPrefsLock)
 
+namespace {
+    QString kMicrophoneDeniedText()
+    {
+        return QCoreApplication::translate("StreamingPreferences",
+                                           "Moonlight isn't allowed to use the microphone. Turn it on in System Settings > Privacy & Security > Microphone.");
+    }
+}
+
 StreamingPreferences::StreamingPreferences(QQmlEngine *qmlEngine)
     : m_QmlEngine(qmlEngine)
     , m_MicrophoneMonitorDeviceId(0)
@@ -222,8 +230,6 @@ void StreamingPreferences::reload()
         videoCodecConfig = VCC_AUTO;
         enableHdr = true;
     }
-
-    refreshMicrophoneDevices();
 }
 
 bool StreamingPreferences::retranslate()
@@ -475,6 +481,29 @@ void StreamingPreferences::setMicrophoneMonitorActive(bool active)
     }
 }
 
+void StreamingPreferences::requestMicrophonePermission()
+{
+    switch (MicPermission::status()) {
+    case MicPermission::Status::Granted:
+        return;
+    case MicPermission::Status::Denied:
+        setMicrophoneMonitorStatus(kMicrophoneDeniedText());
+        return;
+    case MicPermission::Status::Undetermined:
+        if (!m_MicrophonePermissionRequestPending) {
+            m_MicrophonePermissionRequestPending = true;
+            MicPermission::request(this, [this](bool granted) {
+                m_MicrophonePermissionRequestPending = false;
+                if (!granted) {
+                    setMicrophoneMonitorStatus(kMicrophoneDeniedText());
+                }
+                refreshMicrophoneMonitor();
+            });
+        }
+        return;
+    }
+}
+
 bool StreamingPreferences::microphoneTestRunning() const
 {
     return m_MicrophoneMonitorActive;
@@ -516,7 +545,7 @@ bool StreamingPreferences::startMicrophoneMonitor()
     case MicPermission::Status::Granted:
         break;
     case MicPermission::Status::Denied:
-        setMicrophoneMonitorStatus(tr("Moonlight isn't allowed to use the microphone. Turn it on in System Settings > Privacy & Security > Microphone."));
+        setMicrophoneMonitorStatus(kMicrophoneDeniedText());
         return false;
     case MicPermission::Status::Undetermined:
         setMicrophoneMonitorStatus(tr("Waiting for microphone permission"));
@@ -701,7 +730,11 @@ void StreamingPreferences::updateMicrophoneMonitorState()
         const int callbacks = m_MicrophoneCallbackCount.load(std::memory_order_acquire);
         const QString status = callbacks == 0 ?
             tr("No audio is arriving from %1. Check that it's connected, or pick another input.").arg(m_MicrophoneMonitorDeviceLabel) :
+#ifdef Q_OS_DARWIN
             tr("%1 is only sending silence. If other apps hear it, macOS is probably blocking Moonlight: turn it on in System Settings > Privacy & Security > Microphone.").arg(m_MicrophoneMonitorDeviceLabel);
+#else
+            tr("%1 is only sending silence. Check that it isn't muted.").arg(m_MicrophoneMonitorDeviceLabel);
+#endif
         if (status != m_MicrophoneMonitorStatus) {
             qWarning() << "Microphone test:" << callbacks << "callbacks, all silent, after" << elapsed << "ms";
             setMicrophoneMonitorStatus(status);

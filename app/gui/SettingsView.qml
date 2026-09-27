@@ -976,6 +976,9 @@ Flickable {
                     checked: StreamingPreferences.enableMicrophone
                     onCheckedChanged: {
                         StreamingPreferences.enableMicrophone = checked
+                        if (checked) {
+                            StreamingPreferences.requestMicrophonePermission()
+                        }
                         StreamingPreferences.refreshMicrophoneMonitor()
                     }
 

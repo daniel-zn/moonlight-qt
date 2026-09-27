@@ -182,6 +182,7 @@ public:
     Q_INVOKABLE void refreshMicrophoneDevices();
     Q_INVOKABLE void setMicrophoneMonitorActive(bool active);
     Q_INVOKABLE void refreshMicrophoneMonitor();
+    Q_INVOKABLE void requestMicrophonePermission();
 
     QStringList microphoneDevices() const;
     double microphoneMonitorLevel() const;

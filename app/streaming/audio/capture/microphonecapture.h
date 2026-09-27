@@ -47,6 +47,8 @@ private:
     std::atomic_bool m_Streaming;
     std::atomic_bool m_StopEncoderThread;
     bool m_Initialized;
+    bool m_AudioSubsystemInitialized;
+    int m_SendFailures;
     bool m_Enabled;
     bool m_FirstPacketLogged;
     bool m_NoiseSuppression;
