@@ -1,10 +1,12 @@
-[submodule "moonlight-common-c/moonlight-common-c"]
-	path = moonlight-common-c/moonlight-common-c
-	url = https://github.com/daniel-zn/moonlight-common-c
-	branch = mic-passthrough
 [submodule "qmdnsengine/qmdnsengine"]
 	path = qmdnsengine/qmdnsengine
 	url = https://github.com/cgutman/qmdnsengine.git
 [submodule "app/SDL_GameControllerDB"]
 	path = app/SDL_GameControllerDB
 	url = https://github.com/gabomdq/SDL_GameControllerDB.git
+[submodule "moonlight-common-c/moonlight-common-c/enet"]
+	path = moonlight-common-c/moonlight-common-c/enet
+	url = https://github.com/cgutman/enet.git
+[submodule "moonlight-common-c/moonlight-common-c/nanors"]
+	path = moonlight-common-c/moonlight-common-c/nanors
+	url = https://github.com/sleepybishop/nanors.git
