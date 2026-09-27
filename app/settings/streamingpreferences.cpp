@@ -9,6 +9,7 @@
 #include <QLocale>
 #include <QReadWriteLock>
 #include <QTimer>
+#include <QDateTime>
 #include <QtMath>
 
 #include <QtDebug>
@@ -48,6 +49,7 @@
 #define SER_SHOWPERFOVERLAY "showperfoverlay"
 #define SER_ENABLEMICROPHONE "enablemicrophone"
 #define SER_MICROPHONEDEVICE "microphonedevice"
+#define SER_MICNOISESUPPRESSION "micnoisesuppression"
 #define SER_SWAPMOUSEBUTTONS "swapmousebuttons"
 #define SER_MUTEONFOCUSLOSS "muteonfocusloss"
 #define SER_BACKGROUNDGAMEPAD "backgroundgamepad"
@@ -73,8 +75,12 @@ StreamingPreferences::StreamingPreferences(QQmlEngine *qmlEngine)
     , m_MicrophoneMonitorLevel(0.0)
     , m_MicrophoneMonitorActive(false)
     , m_MicrophonePermissionRequestPending(false)
+    , m_MicrophoneCallbackCount(0)
+    , m_MicrophoneSignalEverSeen(false)
+    , m_MicrophoneMonitorStartMs(0)
     , m_MicrophoneMonitorSignalDetected(false)
 {
+    m_MicrophoneMonitorStatus = tr("Press Test microphone and speak to check your input.");
     m_MicrophoneMonitorTimer->setInterval(50);
     connect(m_MicrophoneMonitorTimer, &QTimer::timeout, this, &StreamingPreferences::updateMicrophoneMonitorState);
     reload();
@@ -166,6 +172,7 @@ void StreamingPreferences::reload()
     showPerformanceOverlay = settings.value(SER_SHOWPERFOVERLAY, false).toBool();
     enableMicrophone = settings.value(SER_ENABLEMICROPHONE, false).toBool();
     microphoneDevice = settings.value(SER_MICROPHONEDEVICE, "").toString();
+    micNoiseSuppression = settings.value(SER_MICNOISESUPPRESSION, true).toBool();
     packetSize = settings.value(SER_PACKETSIZE, 0).toInt();
     swapMouseButtons = settings.value(SER_SWAPMOUSEBUTTONS, false).toBool();
     muteOnFocusLoss = settings.value(SER_MUTEONFOCUSLOSS, false).toBool();
@@ -371,6 +378,7 @@ void StreamingPreferences::save()
     settings.setValue(SER_SHOWPERFOVERLAY, showPerformanceOverlay);
     settings.setValue(SER_ENABLEMICROPHONE, enableMicrophone);
     settings.setValue(SER_MICROPHONEDEVICE, microphoneDevice);
+    settings.setValue(SER_MICNOISESUPPRESSION, micNoiseSuppression);
     settings.setValue(SER_AUDIOCFG, static_cast<int>(audioConfig));
     settings.setValue(SER_HDR, enableHdr);
     settings.setValue(SER_YUV444, enableYUV444);
@@ -432,6 +440,8 @@ void StreamingPreferences::refreshMicrophoneDevices()
         }
     }
 
+    qInfo() << "Microphone inputs:" << devices;
+
     if (!microphoneDevice.isEmpty() && !devices.contains(microphoneDevice)) {
         devices.prepend(microphoneDevice);
     }
@@ -456,12 +466,18 @@ void StreamingPreferences::setMicrophoneMonitorActive(bool active)
     }
 
     m_MicrophoneMonitorActive = active;
+    emit microphoneTestRunningChanged();
     if (active) {
         startMicrophoneMonitor();
     }
     else {
-        stopMicrophoneMonitor(tr("Microphone preview inactive"));
+        stopMicrophoneMonitor(tr("Press Test microphone and speak to check your input."));
     }
+}
+
+bool StreamingPreferences::microphoneTestRunning() const
+{
+    return m_MicrophoneMonitorActive;
 }
 
 void StreamingPreferences::refreshMicrophoneMonitor()
@@ -470,7 +486,12 @@ void StreamingPreferences::refreshMicrophoneMonitor()
         return;
     }
 
-    stopMicrophoneMonitor(tr("Microphone preview inactive"));
+    if (!enableMicrophone) {
+        setMicrophoneMonitorActive(false);
+        return;
+    }
+
+    stopMicrophoneMonitor(tr("Press Test microphone and speak to check your input."));
     startMicrophoneMonitor();
 }
 
@@ -535,7 +556,8 @@ bool StreamingPreferences::startMicrophoneMonitor()
     }
 
     if (m_MicrophoneMonitorDeviceId == 0) {
-        setMicrophoneMonitorStatus(tr("Microphone preview unavailable: could not open the selected input"));
+        qWarning() << "Microphone test couldn't open" << microphoneDevice << ":" << SDL_GetError();
+        setMicrophoneMonitorStatus(tr("Couldn't open the microphone: %1").arg(QString::fromUtf8(SDL_GetError())));
         return false;
     }
 
@@ -556,14 +578,27 @@ bool StreamingPreferences::startMicrophoneMonitor()
         emit microphoneMonitorSignalDetectedChanged();
     }
 
+    m_MicrophoneMonitorDeviceLabel = (selectedDevice == nullptr || fellBackToDefault) ?
+                                         tr("the system default input") : microphoneDevice;
+    m_MicrophoneCallbackCount.store(0, std::memory_order_release);
+    m_MicrophoneSignalEverSeen = false;
+    m_MicrophoneMonitorStartMs = QDateTime::currentMSecsSinceEpoch();
+
+    qInfo() << "Microphone test opened" << m_MicrophoneMonitorDeviceLabel
+            << "requested:" << microphoneDevice << "fell back:" << fellBackToDefault
+            << "spec:" << m_MicrophoneMonitorSpec.freq << "Hz" << m_MicrophoneMonitorSpec.channels << "ch"
+            << m_MicrophoneMonitorSpec.samples << "samples";
+
     if (fellBackToDefault) {
-        setMicrophoneMonitorStatus(tr("Selected microphone unavailable, previewing the system default input"));
+        setMicrophoneMonitorStatus(tr("Couldn't open %1, listening to the system default input instead. Speak now.").arg(microphoneDevice));
     }
     else {
-        setMicrophoneMonitorStatus(selectedDevice == nullptr ?
-                                       tr("Previewing the default microphone input") :
-                                       tr("Previewing the selected microphone input"));
+        setMicrophoneMonitorStatus(tr("Listening to %1. Speak now.").arg(m_MicrophoneMonitorDeviceLabel));
     }
+
+    // Preview what the host will hear
+    m_MicrophoneMonitorPending.clear();
+    m_MicrophoneMonitorFilter.reset(micNoiseSuppression ? new MicNoiseFilter() : nullptr);
 
     m_MicrophoneMonitorTimer->start();
     SDL_PauseAudioDevice(m_MicrophoneMonitorDeviceId, 0);
@@ -581,6 +616,7 @@ void StreamingPreferences::stopMicrophoneMonitor(const QString& status)
         SDL_CloseAudioDevice(m_MicrophoneMonitorDeviceId);
         m_MicrophoneMonitorDeviceId = 0;
     }
+    m_MicrophoneMonitorFilter.reset();
 
     m_PendingMicrophonePeak.store(0, std::memory_order_release);
     if (m_MicrophoneMonitorLevel != 0.0) {
@@ -602,14 +638,32 @@ void StreamingPreferences::processMicrophoneMonitorData(const Uint8* stream, int
         return;
     }
 
+    m_MicrophoneCallbackCount.fetch_add(1, std::memory_order_relaxed);
+
     const auto* samples = reinterpret_cast<const qint16*>(stream);
     const int sampleCount = len / static_cast<int>(sizeof(qint16));
     int peak = 0;
-    for (int i = 0; i < sampleCount; ++i) {
-        const int sample = samples[i] < 0 ? -samples[i] : samples[i];
-        if (sample > peak) {
-            peak = sample;
+    auto measure = [&peak](const qint16* block, int count) {
+        for (int i = 0; i < count; ++i) {
+            const int sample = block[i] < 0 ? -block[i] : block[i];
+            peak = qMax(peak, sample);
         }
+    };
+
+    if (m_MicrophoneMonitorFilter) {
+        // The filter works in fixed blocks; carry any remainder to the next callback
+        m_MicrophoneMonitorPending.insert(m_MicrophoneMonitorPending.end(), samples, samples + sampleCount);
+        size_t filtered = 0;
+        while (m_MicrophoneMonitorPending.size() - filtered >= MicNoiseFilter::kBlockSize) {
+            int16_t* block = m_MicrophoneMonitorPending.data() + filtered;
+            m_MicrophoneMonitorFilter->process(block, MicNoiseFilter::kBlockSize);
+            measure(block, MicNoiseFilter::kBlockSize);
+            filtered += MicNoiseFilter::kBlockSize;
+        }
+        m_MicrophoneMonitorPending.erase(m_MicrophoneMonitorPending.begin(), m_MicrophoneMonitorPending.begin() + filtered);
+    }
+    else {
+        measure(samples, sampleCount);
     }
 
     int currentPeak = m_PendingMicrophonePeak.load(std::memory_order_acquire);
@@ -633,6 +687,25 @@ void StreamingPreferences::updateMicrophoneMonitorState()
     if (signalDetected != m_MicrophoneMonitorSignalDetected) {
         m_MicrophoneMonitorSignalDetected = signalDetected;
         emit microphoneMonitorSignalDetectedChanged();
+    }
+
+    if (peak > 0 && !m_MicrophoneSignalEverSeen) {
+        m_MicrophoneSignalEverSeen = true;
+        qInfo() << "Microphone test is receiving audio from" << m_MicrophoneMonitorDeviceLabel;
+        setMicrophoneMonitorStatus(tr("Listening to %1.").arg(m_MicrophoneMonitorDeviceLabel));
+    }
+
+    // Explain the two ways a test can stay flat
+    const qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - m_MicrophoneMonitorStartMs;
+    if (!m_MicrophoneSignalEverSeen && elapsed > 3000) {
+        const int callbacks = m_MicrophoneCallbackCount.load(std::memory_order_acquire);
+        const QString status = callbacks == 0 ?
+            tr("No audio is arriving from %1. Check that it's connected, or pick another input.").arg(m_MicrophoneMonitorDeviceLabel) :
+            tr("%1 is only sending silence. If other apps hear it, macOS is probably blocking Moonlight: turn it on in System Settings > Privacy & Security > Microphone.").arg(m_MicrophoneMonitorDeviceLabel);
+        if (status != m_MicrophoneMonitorStatus) {
+            qWarning() << "Microphone test:" << callbacks << "callbacks, all silent, after" << elapsed << "ms";
+            setMicrophoneMonitorStatus(status);
+        }
     }
 }
 

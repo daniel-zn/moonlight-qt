@@ -15,6 +15,7 @@ MicrophoneCapture::MicrophoneCapture(QObject* parent)
     , m_Initialized(false)
     , m_Enabled(false)
     , m_FirstPacketLogged(false)
+    , m_NoiseSuppression(false)
 {
 }
 
@@ -132,6 +133,11 @@ bool MicrophoneCapture::initialize(const std::string& deviceName)
     }
 
     SDL_PauseAudioDevice(m_DeviceId, 1);
+    if (m_NoiseSuppression) {
+        m_NoiseFilter = std::make_unique<MicNoiseFilter>();
+    }
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                "Microphone noise suppression %s", m_NoiseFilter ? "enabled" : "disabled");
     m_SampleBuffer.reserve(kFrameSize * 4);
     m_StopEncoderThread.store(false, std::memory_order_release);
     m_EncoderThread = std::thread(&MicrophoneCapture::encoderLoop, this);
@@ -164,6 +170,11 @@ void MicrophoneCapture::stop()
     m_Streaming.store(false, std::memory_order_release);
     clearBufferedSamples();
     m_BufferCondition.notify_all();
+}
+
+void MicrophoneCapture::setNoiseSuppression(bool enabled)
+{
+    m_NoiseSuppression = enabled;
 }
 
 void MicrophoneCapture::setEnabled(bool enabled)
@@ -256,6 +267,10 @@ void MicrophoneCapture::encoderLoop()
         }
 
         nextSendDeadline += frameDuration;
+
+        if (m_NoiseFilter) {
+            m_NoiseFilter->process(frame.data(), kFrameSize);
+        }
 
         int encodedBytes = opus_encode(m_Encoder,
                                        frame.data(),

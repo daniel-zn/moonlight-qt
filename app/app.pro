@@ -194,6 +194,7 @@ SOURCES += \
     streaming/session.cpp \
     streaming/audio/audio.cpp \
     streaming/audio/capture/microphonecapture.cpp \
+    streaming/audio/capture/micnoisefilter.cpp \
     streaming/audio/renderers/sdlaud.cpp \
     gui/computermodel.cpp \
     gui/appmodel.cpp \
@@ -232,6 +233,7 @@ HEADERS += \
     streaming/session.h \
     streaming/audio/capture/microphonecapture.h \
     streaming/audio/capture/micpermission.h \
+    streaming/audio/capture/micnoisefilter.h \
     streaming/audio/renderers/renderer.h \
     streaming/audio/renderers/sdl.h \
     gui/computermodel.h \
@@ -412,6 +414,16 @@ win32:!winrt {
 }
 macx {
     message(VideoToolbox renderer selected)
+
+    # RNNoise microphone noise suppression (see streaming/audio/capture/rnnoise/README.md)
+    DEFINES += HAVE_RNNOISE
+    SOURCES += \
+        streaming/audio/capture/rnnoise/celt_lpc.c \
+        streaming/audio/capture/rnnoise/denoise.c \
+        streaming/audio/capture/rnnoise/kiss_fft.c \
+        streaming/audio/capture/rnnoise/pitch.c \
+        streaming/audio/capture/rnnoise/rnn.c \
+        streaming/audio/capture/rnnoise/rnn_data.c
 
     SOURCES += \
         streaming/audio/capture/micpermission_mac.mm \

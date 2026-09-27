@@ -3,6 +3,7 @@
 #include <QObject>
 #include <atomic>
 #include <array>
+#include <memory>
 #include <condition_variable>
 #include <mutex>
 #include <string>
@@ -11,6 +12,8 @@
 
 #include <SDL.h>
 #include <opus.h>
+
+#include "micnoisefilter.h"
 
 class MicrophoneCapture : public QObject
 {
@@ -25,6 +28,8 @@ public:
     void stop();
 
     void setEnabled(bool enabled);
+    // Call before initialize()
+    void setNoiseSuppression(bool enabled);
     bool isEnabled() const;
     bool isStreaming() const;
 
@@ -44,6 +49,8 @@ private:
     bool m_Initialized;
     bool m_Enabled;
     bool m_FirstPacketLogged;
+    bool m_NoiseSuppression;
+    std::unique_ptr<MicNoiseFilter> m_NoiseFilter;  // Encoder thread only
     std::mutex m_BufferMutex;
     std::condition_variable m_BufferCondition;
     std::thread m_EncoderThread;
@@ -51,5 +58,6 @@ private:
     static constexpr int kSampleRate = 48000;
     static constexpr int kChannels = 1;
     static constexpr int kFrameSize = 960;
+    static_assert(kFrameSize % MicNoiseFilter::kBlockSize == 0, "frames must hold whole filter blocks");
     static constexpr int kBitrate = 64000;
 };

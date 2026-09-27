@@ -1789,6 +1789,7 @@ bool Session::initializeMicrophoneCapture()
 
     m_MicrophoneCapture = new MicrophoneCapture(this);
     m_MicrophoneCapture->setEnabled(m_Preferences->enableMicrophone);
+    m_MicrophoneCapture->setNoiseSuppression(m_Preferences->micNoiseSuppression);
     const std::string microphoneDeviceName = m_Preferences->microphoneDevice.toStdString();
     if (!m_MicrophoneCapture->initialize(microphoneDeviceName)) {
         delete m_MicrophoneCapture;

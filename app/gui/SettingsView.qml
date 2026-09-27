@@ -73,7 +73,6 @@ Flickable {
         // This enables Tab and BackTab based navigation rather than arrow keys.
         // It is required to shift focus between controls on the settings page.
         SdlGamepadKeyNavigation.setUiNavMode(true)
-        StreamingPreferences.setMicrophoneMonitorActive(true)
 
         // Highlight the first item if a gamepad is connected
         if (SdlGamepadKeyNavigation.getConnectedGamepads() > 0) {
@@ -1033,11 +1032,41 @@ Flickable {
                     ToolTip.text: qsTr("Choose which local microphone Moonlight captures. Leave this on the default option to follow your system input device.")
                 }
 
-                Label {
+                CheckBox {
+                    id: micNoiseSuppressionCheck
                     width: parent.width
-                    text: qsTr("Microphone input preview")
+                    visible: Qt.platform.os === "osx"
+                    enabled: enableMicrophoneCheck.checked
+                    text: qsTr("Noise suppression")
                     font.pointSize: 12
-                    wrapMode: Text.Wrap
+                    checked: StreamingPreferences.micNoiseSuppression
+                    onCheckedChanged: {
+                        StreamingPreferences.micNoiseSuppression = checked
+                        StreamingPreferences.refreshMicrophoneMonitor()
+                    }
+
+                    ToolTip.delay: 1000
+                    ToolTip.timeout: 5000
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Removes background noise like typing and fans, and mutes the microphone between words.")
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 10
+
+                    Label {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Microphone test")
+                        font.pointSize: 12
+                    }
+
+                    Button {
+                        anchors.verticalCenter: parent.verticalCenter
+                        enabled: enableMicrophoneCheck.checked
+                        text: StreamingPreferences.microphoneTestRunning ? qsTr("Stop test") : qsTr("Test microphone")
+                        onClicked: StreamingPreferences.setMicrophoneMonitorActive(!StreamingPreferences.microphoneTestRunning)
+                    }
                 }
 
                 Rectangle {
@@ -1063,10 +1092,7 @@ Flickable {
                     width: parent.width
                     wrapMode: Text.Wrap
                     font.pointSize: 10
-                    text: StreamingPreferences.microphoneMonitorStatus + "\n" +
-                          (StreamingPreferences.microphoneMonitorSignalDetected ?
-                               qsTr("Input detected on the selected microphone.") :
-                               qsTr("No microphone input detected yet."))
+                    text: StreamingPreferences.microphoneMonitorStatus
                 }
             }
         }
