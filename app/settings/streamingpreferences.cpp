@@ -1,6 +1,7 @@
 #include "streamingpreferences.h"
 #include "SDL_compat.h"
 #include "utils.h"
+#include "streaming/audio/capture/micpermission.h"
 
 #include <QSettings>
 #include <QTranslator>
@@ -71,6 +72,7 @@ StreamingPreferences::StreamingPreferences(QQmlEngine *qmlEngine)
     , m_PendingMicrophonePeak(0)
     , m_MicrophoneMonitorLevel(0.0)
     , m_MicrophoneMonitorActive(false)
+    , m_MicrophonePermissionRequestPending(false)
     , m_MicrophoneMonitorSignalDetected(false)
 {
     m_MicrophoneMonitorTimer->setInterval(50);
@@ -468,7 +470,7 @@ void StreamingPreferences::refreshMicrophoneMonitor()
         return;
     }
 
-    stopMicrophoneMonitor();
+    stopMicrophoneMonitor(tr("Microphone preview inactive"));
     startMicrophoneMonitor();
 }
 
@@ -482,6 +484,31 @@ void StreamingPreferences::microphoneMonitorCallback(void* userdata, Uint8* stre
 
 bool StreamingPreferences::startMicrophoneMonitor()
 {
+    // Only touch the microphone when the user wants it streamed; opening it is
+    // what makes macOS ask for permission.
+    if (!enableMicrophone) {
+        setMicrophoneMonitorStatus(tr("Enable microphone streaming to preview your microphone"));
+        return false;
+    }
+
+    switch (MicPermission::status()) {
+    case MicPermission::Status::Granted:
+        break;
+    case MicPermission::Status::Denied:
+        setMicrophoneMonitorStatus(tr("Moonlight isn't allowed to use the microphone. Turn it on in System Settings > Privacy & Security > Microphone."));
+        return false;
+    case MicPermission::Status::Undetermined:
+        setMicrophoneMonitorStatus(tr("Waiting for microphone permission"));
+        if (!m_MicrophonePermissionRequestPending) {
+            m_MicrophonePermissionRequestPending = true;
+            MicPermission::request(this, [this](bool) {
+                m_MicrophonePermissionRequestPending = false;
+                refreshMicrophoneMonitor();
+            });
+        }
+        return false;
+    }
+
     if (SDL_WasInit(SDL_INIT_AUDIO) == 0 && SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
         setMicrophoneMonitorStatus(tr("Microphone preview unavailable: SDL audio init failed"));
         return false;

@@ -74,6 +74,13 @@ find $BUILD_FOLDER/app/Moonlight.app/ -name '*.dSYM' | xargs rm -rf
 if [ "$SIGNING_IDENTITY" != "" ]; then
   echo Signing app bundle
   codesign --force --deep --options runtime --timestamp --entitlements $SOURCE_ROOT/app/deploy/macos/Moonlight.entitlements --sign "$SIGNING_IDENTITY" $BUILD_FOLDER/app/Moonlight.app || fail "Signing failed!"
+else
+  # Without a real signature the binary is only linker-signed, which gives macOS
+  # nothing to attach privacy permissions (microphone, local network) to, so it
+  # asks again every time and access never sticks. Seal the whole bundle ad-hoc.
+  # No hardened runtime: it would reject the ad-hoc signed frameworks.
+  echo Ad-hoc signing app bundle
+  codesign --force --deep --sign - $BUILD_FOLDER/app/Moonlight.app || fail "Ad-hoc signing failed!"
 fi
 
 echo Creating DMG

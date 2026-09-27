@@ -1,4 +1,5 @@
 #include "microphonecapture.h"
+#include "micpermission.h"
 
 #include <algorithm>
 #include <chrono>
@@ -42,6 +43,14 @@ bool MicrophoneCapture::initialize(const std::string& deviceName)
 {
     if (m_Initialized) {
         return true;
+    }
+
+    // Don't pop a permission prompt over the stream. The Settings page asks
+    // when the user turns microphone streaming on.
+    if (MicPermission::status() != MicPermission::Status::Granted) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                    "Microphone access hasn't been granted to Moonlight; streaming without the microphone");
+        return false;
     }
 
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {

@@ -231,6 +231,7 @@ HEADERS += \
     streaming/input/input.h \
     streaming/session.h \
     streaming/audio/capture/microphonecapture.h \
+    streaming/audio/capture/micpermission.h \
     streaming/audio/renderers/renderer.h \
     streaming/audio/renderers/sdl.h \
     gui/computermodel.h \
@@ -406,10 +407,14 @@ win32:!winrt {
         streaming/video/ffmpeg-renderers/d3d11va.h \
         streaming/video/ffmpeg-renderers/pacer/dxvsyncsource.h
 }
+!macx {
+    SOURCES += streaming/audio/capture/micpermission.cpp
+}
 macx {
     message(VideoToolbox renderer selected)
 
     SOURCES += \
+        streaming/audio/capture/micpermission_mac.mm \
         streaming/video/ffmpeg-renderers/vt_base.mm \
         streaming/video/ffmpeg-renderers/vt_avsamplelayer.mm \
         streaming/video/ffmpeg-renderers/vt_metal.mm
