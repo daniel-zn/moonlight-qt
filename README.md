@@ -10,6 +10,33 @@ You can follow development on our [Discord server](https://moonlight-stream.org/
  [![Downloads](https://img.shields.io/github/downloads/moonlight-stream/moonlight-qt/total)](https://github.com/moonlight-stream/moonlight-qt/releases)
  [![Translation Status](https://hosted.weblate.org/widgets/moonlight/-/moonlight-qt/svg-badge.svg)](https://hosted.weblate.org/projects/moonlight/moonlight-qt/)
 
+## About this fork
+
+> [!NOTE]
+> This is a personal fork (`daniel-zn/moonlight-qt`, default branch `mic-passthrough`) made to pair with
+> [daniel-zn/Apollo](https://github.com/daniel-zn/Apollo). It doesn't follow upstream updates.
+
+What it adds on top of upstream Moonlight:
+
+- **Microphone passthrough to the host.** Moonlight captures your microphone and sends it to an Apollo host
+  from [daniel-zn/Apollo](https://github.com/daniel-zn/Apollo), which plays it into
+  `Microphone (Steam Streaming Microphone)` on the PC for games and voice chat.
+  - Audio goes as 20 ms Opus frames over UDP, encrypted and authenticated with AES-GCM under the session key.
+    The host advertises support with `a=x-apollo-mic:2`, so normal streaming to any other host is unaffected.
+  - Settings > Audio Settings: **Enable microphone streaming**, the input device, **Noise suppression**
+    (macOS: RNNoise plus a gate that mutes between words), and **Test microphone** with a level meter.
+  - On macOS, turning the microphone on asks for microphone permission once.
+- **Native macOS look** (macOS only; Windows and Linux keep upstream's Material look):
+  - A native toolbar with SF Symbols in the title bar, drawn on Liquid Glass on macOS 26 and later.
+  - A translucent glass window and native macOS controls that follow light/dark mode and the accent color.
+  - Redesigned PC cards and game tiles, SF Symbol icons, and rounded dialogs.
+- **Build changes:**
+  - `moonlight-common-c` (with the microphone protocol) is included directly instead of as a submodule.
+  - macOS: a microphone usage description and audio-input entitlement. DMGs built without a signing identity are
+    ad-hoc signed as a whole, so macOS can remember the microphone and Local Network permissions.
+
+The microphone protocol isn't compatible with other microphone forks (logabell's, ApolloVibe, moonlight-mic).
+
 ## Features
  - Hardware accelerated video decoding on Windows, Mac, and Linux
  - H.264, HEVC, and AV1 codec support (AV1 requires Sunshine and a supported host GPU)
