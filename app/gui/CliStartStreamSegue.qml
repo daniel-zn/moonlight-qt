@@ -52,7 +52,7 @@ Item {
         anchors.centerIn: parent
         spacing: 5
 
-        BusyIndicator {
+        ActivitySpinner {
             id: stageSpinner
             running: visible
         }

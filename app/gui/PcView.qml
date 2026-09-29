@@ -91,7 +91,7 @@ CenteredGridView {
         spacing: 5
         visible: pcGrid.count === 0
 
-        BusyIndicator {
+        ActivitySpinner {
             id: searchSpinner
             visible: StreamingPreferences.enableMdns
             running: visible
@@ -304,7 +304,7 @@ CenteredGridView {
             }
 
             // Status on the right: spinner while checking, then a symbol
-            BusyIndicator {
+            ActivitySpinner {
                 anchors.centerIn: macStatusIcon
                 width: 20; height: 20
                 visible: model.statusUnknown || (pcTile.waking && !model.online)
@@ -351,7 +351,7 @@ CenteredGridView {
             }
         }
 
-        BusyIndicator {
+        ActivitySpinner {
             id: statusUnknownSpinner
             anchors.horizontalCenter: pcIcon.horizontalCenter
             anchors.verticalCenter: pcIcon.verticalCenter

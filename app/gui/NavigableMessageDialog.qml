@@ -56,7 +56,7 @@ NavigableDialog {
     RowLayout {
         spacing: NativeChrome.enabled ? 14 : 10
 
-        BusyIndicator {
+        ActivitySpinner {
             id: dialogSpinner
             visible: false
             running: visible

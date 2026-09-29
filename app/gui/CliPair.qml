@@ -53,7 +53,7 @@ Item {
         spacing: 5
         id: stageIndicator
 
-        BusyIndicator {
+        ActivitySpinner {
             id: stageSpinner
             running: visible
         }
