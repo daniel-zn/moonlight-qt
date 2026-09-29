@@ -16,10 +16,11 @@ CenteredGridView {
     id: pcGrid
     focus: true
     activeFocusOnTab: true
-    topMargin: NativeChrome.enabled ? 28 : 20
+    topMargin: NativeChrome.enabled ? 10 : 20
     bottomMargin: 5
-    cellWidth: NativeChrome.enabled ? 232 : 310
-    cellHeight: NativeChrome.enabled ? 252 : 330
+    // macOS shows a list: one full-width row per PC
+    cellWidth: NativeChrome.enabled ? Math.min(width - 20, 640) : 310
+    cellHeight: NativeChrome.enabled ? 54 : 330
     objectName: qsTr("Computers")
 
     Component.onCompleted: {
@@ -100,7 +101,7 @@ CenteredGridView {
             elide: Label.ElideRight
             text: StreamingPreferences.enableMdns ? qsTr("Searching for compatible hosts on your local network...")
                                                   : qsTr("Automatic PC discovery is disabled. Add your PC manually.")
-            font.pointSize: 20
+            font.pointSize: NativeChrome.enabled ? 13 : 20
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
         }
@@ -110,103 +111,99 @@ CenteredGridView {
 
     delegate: NavigableItemDelegate {
         id: pcTile
-        width: NativeChrome.enabled ? 212 : 300
-        height: NativeChrome.enabled ? 232 : 320
+        width: NativeChrome.enabled ? pcGrid.cellWidth : 300
+        height: NativeChrome.enabled ? 50 : 320
         grid: pcGrid
 
         property alias pcContextMenu : pcContextMenuLoader.item
 
-        // macOS: a rounded card with an SF Symbol and a status line, in the style of
-        // Finder's icon view. Other platforms keep the Material tile below.
+        // macOS: a list row (computer symbol, name, status), like a Finder sidebar
+        // or System Settings list. Other platforms keep the Material tile below.
         Component.onCompleted: {
             if (NativeChrome.enabled) {
-                background = macCardComponent.createObject(pcTile)
+                background = macRowBackgroundComponent.createObject(pcTile)
             }
         }
 
         Component {
-            id: macCardComponent
+            id: macRowBackgroundComponent
             Rectangle {
-                radius: 18
-                color: pcTile.down ? Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.16)
-                     : pcTile.hovered || pcTile.highlighted ? Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.10)
-                     : Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.05)
-                border.width: pcTile.highlighted ? 3 : 1
-                border.color: pcTile.highlighted ? pcTile.palette.highlight
-                            : Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.08)
-                Behavior on color { ColorAnimation { duration: 120 } }
+                radius: 10
+                color: pcTile.highlighted ? pcTile.palette.highlight
+                     : pcTile.down ? Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.14)
+                     : pcTile.hovered ? Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.08)
+                     : "transparent"
+                Behavior on color { ColorAnimation { duration: 100 } }
             }
         }
 
         Item {
+            id: macRow
             visible: NativeChrome.enabled
             anchors.fill: parent
 
+            readonly property color textColor: pcTile.highlighted ? "white" : pcTile.palette.text
+
             Image {
                 id: macPcIcon
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                anchors.topMargin: 26
-                source: NativeChrome.enabled ? NativeChrome.symbol("desktopcomputer", pcTile.palette.text) : ""
-                sourceSize { width: 112; height: 112 }
-                width: 112; height: 112
-                smooth: true
-                opacity: model.online ? 1.0 : 0.55
-            }
-
-            // Status badge on the monitor's corner
-            Rectangle {
-                visible: !model.statusUnknown
-                width: 34; height: 34; radius: 17
-                anchors.right: macPcIcon.right
-                anchors.bottom: macPcIcon.bottom
-                anchors.bottomMargin: 14
-                color: pcTile.palette.window
-                Image {
-                    anchors.centerIn: parent
-                    width: 26; height: 26
-                    sourceSize { width: 26; height: 26 }
-                    source: !NativeChrome.enabled ? ""
-                          : !model.online ? NativeChrome.symbol("exclamationmark.triangle.fill", "#FF9F0A")
-                          : !model.paired ? NativeChrome.symbol("lock.fill", pcTile.palette.text)
-                          : NativeChrome.symbol("checkmark.circle.fill", "#30D158")
-                }
-            }
-
-            BusyIndicator {
-                anchors.centerIn: macPcIcon
-                width: 40; height: 40
-                visible: model.statusUnknown
-                running: visible
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                width: 30; height: 30
+                sourceSize { width: 30; height: 30 }
+                source: NativeChrome.enabled ? NativeChrome.symbol("desktopcomputer", macRow.textColor) : ""
+                opacity: model.online ? 1.0 : 0.5
             }
 
             Column {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.margins: 14
-                anchors.bottomMargin: 18
-                spacing: 3
+                anchors.left: macPcIcon.right
+                anchors.leftMargin: 12
+                anchors.right: macStatusIcon.left
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
 
                 Label {
                     width: parent.width
                     text: model.name
-                    font.pixelSize: 17
+                    color: macRow.textColor
+                    font.pixelSize: 14
                     font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
                 }
                 Label {
                     width: parent.width
                     text: model.statusUnknown ? qsTr("Connecting…")
                         : !model.online ? qsTr("Offline")
-                        : !model.paired ? qsTr("Not paired")
+                        : !model.paired ? qsTr("Not paired – click to pair")
                         : qsTr("Online")
-                    font.pixelSize: 12
-                    opacity: 0.6
-                    horizontalAlignment: Text.AlignHCenter
+                    color: macRow.textColor
+                    opacity: 0.65
+                    font.pixelSize: 11
                     elide: Text.ElideRight
                 }
+            }
+
+            // Status on the right: spinner while checking, then a symbol
+            BusyIndicator {
+                anchors.centerIn: macStatusIcon
+                width: 20; height: 20
+                visible: model.statusUnknown
+                running: visible
+            }
+            Image {
+                id: macStatusIcon
+                anchors.right: parent.right
+                anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                width: 18; height: 18
+                sourceSize { width: 18; height: 18 }
+                visible: !model.statusUnknown
+                source: !NativeChrome.enabled ? ""
+                      : !model.online ? NativeChrome.symbol("exclamationmark.triangle.fill", pcTile.highlighted ? "#FFFFFF" : "#FF9F0A")
+                      : !model.paired ? NativeChrome.symbol("lock.fill", macRow.textColor)
+                      : NativeChrome.symbol("chevron.right", macRow.textColor)
+                opacity: model.online && model.paired ? 0.5 : 1.0
             }
         }
 

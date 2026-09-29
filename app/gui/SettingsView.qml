@@ -23,8 +23,12 @@ Flickable {
 
     boundsBehavior: Flickable.OvershootBounds
 
+    // Two columns side by side, or stacked in a narrow window (macOS, where the window starts small)
+    property bool twoColumns: !NativeChrome.enabled || width >= 900
+
     contentWidth: settingsColumn1.width > settingsColumn2.width ? settingsColumn1.width : settingsColumn2.width
-    contentHeight: settingsColumn1.height > settingsColumn2.height ? settingsColumn1.height : settingsColumn2.height
+    contentHeight: twoColumns ? (settingsColumn1.height > settingsColumn2.height ? settingsColumn1.height : settingsColumn2.height)
+                              : settingsColumn2.y + settingsColumn2.height
 
     ScrollBar.vertical: ScrollBar {
         anchors {
@@ -105,7 +109,7 @@ Flickable {
     Column {
         padding: 10
         id: settingsColumn1
-        width: settingsPage.width / 2
+        width: settingsPage.twoColumns ? settingsPage.width / 2 : settingsPage.width
         spacing: 15
 
         GroupBox {
@@ -1453,9 +1457,10 @@ Flickable {
     Column {
         padding: 10
         rightPadding: 20
-        anchors.left: settingsColumn1.right
+        x: settingsPage.twoColumns ? settingsColumn1.width : 0
+        y: settingsPage.twoColumns ? 0 : settingsColumn1.height
         id: settingsColumn2
-        width: settingsPage.width / 2
+        width: settingsPage.twoColumns ? settingsPage.width / 2 : settingsPage.width
         spacing: 15
 
         GroupBox {

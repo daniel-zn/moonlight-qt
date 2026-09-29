@@ -29,7 +29,9 @@ What it adds on top of upstream Moonlight:
 - **Native macOS look** (macOS only; Windows and Linux keep upstream's Material look):
   - A native toolbar with SF Symbols in the title bar, drawn on Liquid Glass on macOS 26 and later.
   - A translucent glass window and native macOS controls that follow light/dark mode and the accent color.
-  - Redesigned PC cards and game tiles, SF Symbol icons, and rounded dialogs.
+  - A compact window with lists instead of tiles: PCs with their status, and games with a small box art
+    thumbnail and Resume/Quit on a running game. Settings stack into one column when the window is narrow.
+  - SF Symbol icons and rounded dialogs.
 - **Build changes:**
   - `moonlight-common-c` (with the microphone protocol) is included directly instead of as a submodule.
   - macOS: a microphone usage description and audio-input entitlement. DMGs built without a signing identity are

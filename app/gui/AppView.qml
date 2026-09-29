@@ -19,9 +19,11 @@ CenteredGridView {
     id: appGrid
     focus: true
     activeFocusOnTab: true
-    topMargin: 20
+    topMargin: NativeChrome.enabled ? 10 : 20
     bottomMargin: 5
-    cellWidth: 230; cellHeight: 297;
+    // macOS shows a list: one full-width row per game
+    cellWidth: NativeChrome.enabled ? Math.min(width - 20, 640) : 230
+    cellHeight: NativeChrome.enabled ? 64 : 297
 
     function computerLost()
     {
@@ -75,7 +77,8 @@ CenteredGridView {
 
     delegate: NavigableItemDelegate {
         id: appTile
-        width: 220; height: 287;
+        width: NativeChrome.enabled ? appGrid.cellWidth : 220
+        height: NativeChrome.enabled ? 60 : 287
         grid: appGrid
 
         // macOS: the art itself is the tile (rounded, shadowed, lifts on hover),
@@ -88,13 +91,8 @@ CenteredGridView {
 
         Component {
             id: macFocusRingComponent
-            Rectangle {
-                radius: 18
-                color: "transparent"
-                border.width: 3
-                border.color: appTile.palette.highlight
-                visible: appTile.highlighted
-            }
+            // The row (MacAppRow) draws its own hover and selection
+            Item {}
         }
 
         property alias appContextMenu: appContextMenuLoader.item
@@ -110,8 +108,8 @@ CenteredGridView {
             anchors.horizontalCenter: parent.horizontalCenter
             y: 10
             source: model.boxart
-            // On macOS this still sizes the tile and detects placeholders, but MacBoxArt draws it
-            opacity: NativeChrome.enabled ? 0 : 1
+            // On macOS this still loads the art and detects placeholders, but MacAppRow draws it
+            visible: !NativeChrome.enabled
 
             onSourceSizeChanged: {
                 // Nearly all of Nvidia's official box art does not match the dimensions of placeholder
@@ -141,33 +139,48 @@ CenteredGridView {
             ToolTip.visible: (parent.hovered || parent.highlighted) && (!appNameText || appNameText.truncated)
         }
 
-        // Only macOS loads this (it needs Qt 6's QtQuick.Effects)
+        // macOS list row. Only macOS loads it (it needs Qt 6's QtQuick.Effects).
         Loader {
             active: NativeChrome.enabled
-            anchors.fill: appIcon
-            source: "MacBoxArt.qml"
+            anchors.fill: parent
+            source: "MacAppRow.qml"
             onLoaded: {
-                item.source = Qt.binding(function() { return model.boxart })
-                item.lifted = Qt.binding(function() { return appTile.hovered || appTile.highlighted })
+                item.boxArt = Qt.binding(function() { return model.boxart })
+                item.name = Qt.binding(function() { return model.name })
+                item.running = Qt.binding(function() { return model.running })
+                item.selected = Qt.binding(function() { return appTile.highlighted })
+                item.hovered = Qt.binding(function() { return appTile.hovered })
+                item.trailingSpace = Qt.binding(function() { return model.running ? macRunningButtons.width + 8 : 0 })
+            }
+        }
+
+        // macOS: Resume and Quit sit at the end of a running game's row
+        Row {
+            id: macRunningButtons
+            visible: NativeChrome.enabled && model.running
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 6
+
+            Button {
+                focusPolicy: Qt.NoFocus
+                text: qsTr("Resume")
+                onClicked: launchOrResumeSelectedApp(true)
+            }
+            Button {
+                focusPolicy: Qt.NoFocus
+                text: qsTr("Quit")
+                onClicked: doQuitGame()
             }
         }
 
         Loader {
-            active: model.running
+            active: model.running && !NativeChrome.enabled
             asynchronous: true
             anchors.fill: appIcon
 
             sourceComponent: Item {
-                Component {
-                    id: macOverlayButtonComponent
-                    Rectangle {
-                        radius: width / 2
-                        color: parent && parent.hovered ? Qt.rgba(0, 0, 0, 0.75) : Qt.rgba(0, 0, 0, 0.55)
-                        border.width: 1
-                        border.color: Qt.rgba(1, 1, 1, 0.25)
-                    }
-                }
-
                 RoundButton {
                     // Don't steal focus from the toolbar buttons
                     focusPolicy: Qt.NoFocus
@@ -175,19 +188,12 @@ CenteredGridView {
                     anchors.horizontalCenterOffset: appIcon.isPlaceholder ? -47 : 0
                     anchors.verticalCenterOffset: appIcon.isPlaceholder ? -75 : -60
                     anchors.centerIn: parent
-                    implicitWidth: NativeChrome.enabled ? 64 : 85
-                    implicitHeight: NativeChrome.enabled ? 64 : 85
+                    implicitWidth: 85
+                    implicitHeight: 85
 
-                    icon.source: NativeChrome.enabled ? NativeChrome.symbol("play.fill", "#FFFFFF") : "qrc:/res/play_arrow_FILL1_wght700_GRAD200_opsz48.svg"
-                    icon.width: NativeChrome.enabled ? 28 : 75
-                    icon.height: NativeChrome.enabled ? 28 : 75
-                    icon.color: NativeChrome.enabled ? "white" : undefined
-
-                    Component.onCompleted: {
-                        if (NativeChrome.enabled) {
-                            background = macOverlayButtonComponent.createObject(this)
-                        }
-                    }
+                    icon.source: "qrc:/res/play_arrow_FILL1_wght700_GRAD200_opsz48.svg"
+                    icon.width: 75
+                    icon.height: 75
 
                     onClicked: {
                         launchOrResumeSelectedApp(true)
@@ -208,19 +214,12 @@ CenteredGridView {
                     anchors.horizontalCenterOffset: appIcon.isPlaceholder ? 47 : 0
                     anchors.verticalCenterOffset: appIcon.isPlaceholder ? -75 : 60
                     anchors.centerIn: parent
-                    implicitWidth: NativeChrome.enabled ? 64 : 85
-                    implicitHeight: NativeChrome.enabled ? 64 : 85
+                    implicitWidth: 85
+                    implicitHeight: 85
 
-                    icon.source: NativeChrome.enabled ? NativeChrome.symbol("stop.fill", "#FFFFFF") : "qrc:/res/stop_FILL1_wght700_GRAD200_opsz48.svg"
-                    icon.width: NativeChrome.enabled ? 28 : 75
-                    icon.height: NativeChrome.enabled ? 28 : 75
-                    icon.color: NativeChrome.enabled ? "white" : undefined
-
-                    Component.onCompleted: {
-                        if (NativeChrome.enabled) {
-                            background = macOverlayButtonComponent.createObject(this)
-                        }
-                    }
+                    icon.source: "qrc:/res/stop_FILL1_wght700_GRAD200_opsz48.svg"
+                    icon.width: 75
+                    icon.height: 75
 
                     onClicked: {
                         doQuitGame()
@@ -238,7 +237,7 @@ CenteredGridView {
 
         Loader {
             id: appNameTextLoader
-            active: appIcon.isPlaceholder
+            active: appIcon.isPlaceholder && !NativeChrome.enabled
 
             // This loader is not asynchronous to avoid noticeable differences
             // in the time in which the text loads for each game.

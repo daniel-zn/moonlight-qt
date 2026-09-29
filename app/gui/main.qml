@@ -22,8 +22,11 @@ ApplicationWindow {
     property bool clearOnBack: false
 
     id: window
-    width: 1280
-    height: 600
+    // macOS starts as a compact list window, like other Mac launchers
+    width: NativeChrome.enabled ? 460 : 1280
+    height: NativeChrome.enabled ? 520 : 600
+    minimumWidth: NativeChrome.enabled ? 360 : 0
+    minimumHeight: NativeChrome.enabled ? 300 : 0
 
     // On macOS the window sits on a Liquid Glass backdrop drawn by NativeChrome
     color: NativeChrome.enabled ? "transparent" : Mat.Material.background
