@@ -21,12 +21,19 @@ ApplicationWindow {
     // a retranslate() because AppView breaks for some reason.
     property bool clearOnBack: false
 
+    // Set while a stream is starting or a game is quitting. Hides the toolbar
+    // (the QML one, or the native one's items on macOS).
+    property bool chromeHidden: false
+
+    // How many NavigableDialogs are open (the macOS menu bar disables itself meanwhile)
+    property int openDialogs: 0
+
     id: window
     // macOS starts as a compact list window, like other Mac launchers
-    width: NativeChrome.enabled ? 460 : 1280
-    height: NativeChrome.enabled ? 520 : 600
-    minimumWidth: NativeChrome.enabled ? 360 : 0
-    minimumHeight: NativeChrome.enabled ? 300 : 0
+    width: NativeChrome.enabled ? 400 : 1280
+    height: NativeChrome.enabled ? 452 : 600
+    minimumWidth: NativeChrome.enabled ? 340 : 0
+    minimumHeight: NativeChrome.enabled ? 280 : 0
 
     // On macOS the window sits on a Liquid Glass backdrop drawn by NativeChrome
     color: NativeChrome.enabled ? "transparent" : Mat.Material.background
@@ -59,9 +66,17 @@ ApplicationWindow {
             window.showFullScreen()
         }
 
-        // Replace our toolbar with the native one where the platform has it
+        // Replace our toolbar with the native one where the platform has it,
+        // and give macOS a real menu bar with every action in it
         if (NativeChrome.enabled) {
             NativeChrome.attach(window)
+            var menuBarComponent = Qt.createComponent("MacMenuBar.qml")
+            if (menuBarComponent.status === Component.Ready) {
+                window.menuBar = menuBarComponent.createObject(window)
+            }
+            else {
+                console.error(menuBarComponent.errorString())
+            }
         }
 
         // Display any modal dialogs for configuration warnings
@@ -105,9 +120,17 @@ ApplicationWindow {
         text: ToolTip.toolTip.text
     }
 
-    // This configures the maximum width of the singleton attached QML ToolTip. If left unconstrained,
-    // it will never insert a line break and just extend on forever.
-    ToolTip.toolTip.contentWidth: Math.min(tooltipTextLayoutHelper.width, 400)
+    // The native macOS style has no tooltip of its own and falls back to Fusion's.
+    // Draw it like the system's: small text on a rounded, bordered panel.
+    Component {
+        id: macToolTipBackground
+        Rectangle {
+            radius: 6
+            color: window.palette.window
+            border.width: 1
+            border.color: Qt.rgba(window.palette.text.r, window.palette.text.g, window.palette.text.b, 0.15)
+        }
+    }
 
     function goBack() {
         if (clearOnBack) {
@@ -125,7 +148,19 @@ ApplicationWindow {
         anchors.fill: parent
         focus: true
 
+        // This configures the maximum width of the singleton attached QML ToolTip. If left unconstrained,
+        // it will never insert a line break and just extend on forever. (It has to be attached to an
+        // Item; on the window it was ignored.)
+        ToolTip.toolTip.contentWidth: Math.min(tooltipTextLayoutHelper.width, 400)
+
         Component.onCompleted: {
+            // The shared tooltip can only be reached from an Item, so it's styled here
+            if (NativeChrome.enabled) {
+                ToolTip.toolTip.background = macToolTipBackground.createObject(ToolTip.toolTip)
+                ToolTip.toolTip.font.pixelSize = 12
+                ToolTip.toolTip.palette.toolTipText = Qt.binding(function() { return window.palette.windowText })
+            }
+
             // Perform our early initialization before constructing
             // the initial view and pushing it to the StackView
             doEarlyInit()
@@ -143,7 +178,8 @@ ApplicationWindow {
             if (depth > 1) {
                 goBack()
             }
-            else {
+            else if (!NativeChrome.enabled) {
+                // Mac apps don't ask to quit on Escape; ⌘Q quits
                 quitConfirmationDialog.open()
             }
         }
@@ -249,9 +285,10 @@ ApplicationWindow {
 
     // Native toolbar state and actions (macOS). These mirror the QML toolbar below.
     Binding { target: window; property: "title"; value: stackView.currentItem ? stackView.currentItem.objectName : ""; when: NativeChrome.enabled }
-    Binding { target: NativeChrome; property: "canGoBack"; value: stackView.depth > 1; when: NativeChrome.enabled }
-    Binding { target: NativeChrome; property: "showAddPc"; value: stackView.currentItem instanceof PcView; when: NativeChrome.enabled }
-    Binding { target: NativeChrome; property: "showHelp"; value: SystemProperties.hasBrowser; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "canGoBack"; value: stackView.depth > 1 && !chromeHidden; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "showAddPc"; value: stackView.currentItem instanceof PcView && !chromeHidden; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "showHelp"; value: SystemProperties.hasBrowser && !chromeHidden; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "showSettings"; value: !chromeHidden; when: NativeChrome.enabled }
     Binding { target: NativeChrome; property: "updateText"; value: updateButton.visible ? updateButton.ToolTip.text : ""; when: NativeChrome.enabled }
 
     Connections {
@@ -265,7 +302,7 @@ ApplicationWindow {
 
     header: ToolBar {
         id: toolBar
-        visible: !NativeChrome.enabled
+        visible: !NativeChrome.enabled && !chromeHidden
         height: visible ? 60 : 0
         anchors.topMargin: 5
         anchors.bottomMargin: 5
@@ -358,6 +395,8 @@ ApplicationWindow {
 
                 Shortcut {
                     id: newPcShortcut
+                    // The macOS menu bar owns this shortcut
+                    enabled: !NativeChrome.enabled
                     sequence: StandardKey.New
                     onActivated: addPcButton.clicked()
                 }
@@ -422,6 +461,8 @@ ApplicationWindow {
 
                 Shortcut {
                     id: helpShortcut
+                    // The macOS menu bar owns this shortcut
+                    enabled: !NativeChrome.enabled
                     sequence: StandardKey.HelpContents
                     onActivated: helpButton.clicked()
                 }
@@ -465,6 +506,8 @@ ApplicationWindow {
 
                 Shortcut {
                     id: settingsShortcut
+                    // The macOS menu bar owns this shortcut
+                    enabled: !NativeChrome.enabled
                     sequence: StandardKey.Preferences
                     onActivated: settingsButton.clicked()
                 }
@@ -545,9 +588,16 @@ ApplicationWindow {
 
     NavigableDialog {
         id: addPcDialog
-        property string label: qsTr("Enter the IP address of your host PC:")
+        property string label: NativeChrome.enabled ? qsTr("Add a computer by its IP address or hostname:")
+                                                    : qsTr("Enter the IP address of your host PC:")
 
         standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onAboutToShow: {
+            if (NativeChrome.enabled && footer.standardButton(Dialog.Ok)) {
+                footer.standardButton(Dialog.Ok).text = qsTr("Add")
+            }
+        }
 
         onOpened: {
             // Force keyboard focus on the textbox so keyboard navigation works
@@ -573,6 +623,8 @@ ApplicationWindow {
             TextField {
                 id: editText
                 Layout.fillWidth: true
+                Layout.minimumWidth: NativeChrome.enabled ? 260 : 0
+                placeholderText: NativeChrome.enabled ? "192.168.1.20" : ""
                 focus: true
 
                 Keys.onReturnPressed: {

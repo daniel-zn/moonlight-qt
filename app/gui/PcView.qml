@@ -1,6 +1,7 @@
 import QtQuick 2.9
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
+import QtQuick.Window 2.2
 
 import ComputerModel 1.0
 
@@ -117,6 +118,120 @@ CenteredGridView {
 
         property alias pcContextMenu : pcContextMenuLoader.item
 
+        // Read by the macOS menu bar, which acts on the selected computer
+        readonly property string pcName: model.name
+        readonly property bool pcOnline: model.online
+        readonly property bool pcPaired: model.paired
+        readonly property bool pcWakeable: model.wakeable
+        readonly property bool pcStatusUnknown: model.statusUnknown
+
+        // Set after a wake request until the PC comes online or we give up
+        property bool waking: false
+
+        Timer {
+            id: wakingTimer
+            interval: 90000
+            onTriggered: pcTile.waking = false
+        }
+
+        onPcOnlineChanged: {
+            if (pcOnline) {
+                waking = false
+            }
+        }
+
+        // Does what the PC is ready for: open its apps, pair it, or wake it
+        function activate() {
+            if (model.statusUnknown) {
+                // Checking an asleep PC can take a while. Waking it is harmless if
+                // it turns out to be awake, so don't make the user wait to wake it.
+                if (!NativeChrome.enabled) {
+                    // Using open() here because it may be activated by keyboard
+                    pcContextMenu.open()
+                }
+                else if (model.wakeable) {
+                    wake()
+                }
+                return
+            }
+            else if (model.online) {
+                if (model.paired || !model.serverSupported) {
+                    showApps(false)
+                }
+                else {
+                    pair()
+                }
+            }
+            else if (NativeChrome.enabled) {
+                wake()
+            }
+            else {
+                // Using open() here because it may be activated by keyboard
+                pcContextMenu.open()
+            }
+        }
+
+        function showApps(includeHidden) {
+            if (!model.serverSupported) {
+                errorDialog.text = qsTr("The version of GeForce Experience on %1 is not supported by this build of Moonlight. You must update Moonlight to stream from %1.").arg(model.name)
+                errorDialog.helpText = ""
+                errorDialog.open()
+                return
+            }
+
+            var component = Qt.createComponent("AppView.qml")
+            var properties = {"computerIndex": index, "objectName": model.name}
+            if (includeHidden) {
+                properties.showHiddenGames = true
+            }
+            stackView.push(component.createObject(stackView, properties))
+        }
+
+        function pair() {
+            var pin = computerModel.generatePinString()
+
+            // Kick off pairing in the background
+            computerModel.pairComputer(index, pin)
+
+            // Display the pairing dialog
+            pairDialog.pin = pin
+            pairDialog.open()
+        }
+
+        function wake() {
+            if (!model.wakeable) {
+                errorDialog.text = qsTr("%1 is offline, and Moonlight can't wake it because it doesn't know the PC's network address yet. Turn the PC on and pair with it, and Moonlight will be able to wake it next time.").arg(model.name)
+                errorDialog.helpText = ""
+                errorDialog.open()
+                return
+            }
+            computerModel.wakeComputer(index)
+            waking = true
+            wakingTimer.restart()
+        }
+
+        function rename() {
+            renamePcDialog.pcIndex = index
+            renamePcDialog.originalName = model.name
+            renamePcDialog.open()
+        }
+
+        function remove() {
+            deletePcDialog.pcIndex = index
+            deletePcDialog.pcName = model.name
+            deletePcDialog.open()
+        }
+
+        function testNetwork() {
+            computerModel.testConnectionForComputer(index)
+            testConnectionDialog.open()
+        }
+
+        function showDetails() {
+            showPcDetailsDialog.pcDetails = model.details
+            showPcDetailsDialog.open()
+        }
+
         // macOS: a list row (computer symbol, name, status), like a Finder sidebar
         // or System Settings list. Other platforms keep the Material tile below.
         Component.onCompleted: {
@@ -142,7 +257,9 @@ CenteredGridView {
             visible: NativeChrome.enabled
             anchors.fill: parent
 
-            readonly property color textColor: pcTile.highlighted ? "white" : pcTile.palette.text
+            // White on the accent color; in an inactive window the selection turns
+            // gray, so the text stays dark there, as in Finder
+            readonly property color textColor: pcTile.highlighted && pcTile.Window.active ? "white" : pcTile.palette.text
 
             Image {
                 id: macPcIcon
@@ -173,9 +290,11 @@ CenteredGridView {
                 }
                 Label {
                     width: parent.width
-                    text: model.statusUnknown ? qsTr("Connecting…")
+                    text: !model.online && pcTile.waking ? qsTr("Waking up…")
+                        : model.statusUnknown ? qsTr("Connecting…")
+                        : !model.online && model.wakeable ? qsTr("Offline · Double-click to wake")
                         : !model.online ? qsTr("Offline")
-                        : !model.paired ? qsTr("Not paired – click to pair")
+                        : !model.paired ? qsTr("Not paired · Double-click to pair")
                         : qsTr("Online")
                     color: macRow.textColor
                     opacity: 0.65
@@ -188,7 +307,7 @@ CenteredGridView {
             BusyIndicator {
                 anchors.centerIn: macStatusIcon
                 width: 20; height: 20
-                visible: model.statusUnknown
+                visible: model.statusUnknown || (pcTile.waking && !model.online)
                 running: visible
             }
             Image {
@@ -198,12 +317,12 @@ CenteredGridView {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 18; height: 18
                 sourceSize { width: 18; height: 18 }
-                visible: !model.statusUnknown
+                visible: !model.statusUnknown && !(pcTile.waking && !model.online)
                 source: !NativeChrome.enabled ? ""
-                      : !model.online ? NativeChrome.symbol("exclamationmark.triangle.fill", pcTile.highlighted ? "#FFFFFF" : "#FF9F0A")
+                      : !model.online ? NativeChrome.symbol("moon.zzz.fill", macRow.textColor)
                       : !model.paired ? NativeChrome.symbol("lock.fill", macRow.textColor)
                       : NativeChrome.symbol("chevron.right", macRow.textColor)
-                opacity: model.online && model.paired ? 0.5 : 1.0
+                opacity: model.online && !model.paired ? 1.0 : 0.5
             }
         }
 
@@ -267,85 +386,102 @@ CenteredGridView {
                     text: qsTr("PC Status: %1").arg(model.online ? qsTr("Online") : qsTr("Offline"))
                     font.bold: true
                     enabled: false
+                    // macOS shows the status in the row itself
+                    visible: !NativeChrome.enabled
+                    height: visible ? implicitHeight : 0
                 }
                 NavigableMenuItem {
-                    text: qsTr("View All Apps")
-                    onTriggered: {
-                        var component = Qt.createComponent("AppView.qml")
-                        var appView = component.createObject(stackView, {"computerIndex": index, "objectName": model.name, "showHiddenGames": true})
-                        stackView.push(appView)
-                    }
+                    text: qsTr("Open")
+                    onTriggered: pcTile.showApps(false)
+                    visible: NativeChrome.enabled && model.online && model.paired
+                }
+                NavigableMenuItem {
+                    text: qsTr("Pair…")
+                    onTriggered: pcTile.pair()
+                    visible: NativeChrome.enabled && model.online && !model.paired
+                }
+                // Other platforms keep upstream's order: View All Apps, Wake, Test Network,
+                // Rename, Delete, View Details
+                NavigableMenuItem {
+                    text: NativeChrome.enabled ? qsTr("Show All Games, Including Hidden") : qsTr("View All Apps")
+                    onTriggered: pcTile.showApps(true)
                     visible: model.online && model.paired
                 }
                 NavigableMenuItem {
                     text: qsTr("Wake PC")
-                    onTriggered: computerModel.wakeComputer(index)
+                    onTriggered: pcTile.wake()
                     visible: !model.online && model.wakeable
                 }
-                NavigableMenuItem {
-                    text: qsTr("Test Network")
-                    onTriggered: {
-                        computerModel.testConnectionForComputer(index)
-                        testConnectionDialog.open()
-                    }
-                }
-
-                NavigableMenuItem {
-                    text: qsTr("Rename PC")
-                    onTriggered: {
-                        renamePcDialog.pcIndex = index
-                        renamePcDialog.originalName = model.name
-                        renamePcDialog.open()
-                    }
+                MenuSeparator {
+                    visible: NativeChrome.enabled
+                    height: visible ? implicitHeight : 0
                 }
                 NavigableMenuItem {
-                    text: qsTr("Delete PC")
-                    onTriggered: {
-                        deletePcDialog.pcIndex = index
-                        deletePcDialog.pcName = model.name
-                        deletePcDialog.open()
-                    }
+                    text: NativeChrome.enabled ? qsTr("Test Network…") : qsTr("Test Network")
+                    onTriggered: pcTile.testNetwork()
+                }
+                NavigableMenuItem {
+                    text: NativeChrome.enabled ? qsTr("Rename…") : qsTr("Rename PC")
+                    onTriggered: pcTile.rename()
+                }
+                NavigableMenuItem {
+                    text: qsTr("Get Info")
+                    onTriggered: pcTile.showDetails()
+                    visible: NativeChrome.enabled
+                }
+                MenuSeparator {
+                    visible: NativeChrome.enabled
+                    height: visible ? implicitHeight : 0
+                }
+                NavigableMenuItem {
+                    text: NativeChrome.enabled ? qsTr("Remove…") : qsTr("Delete PC")
+                    onTriggered: pcTile.remove()
                 }
                 NavigableMenuItem {
                     text: qsTr("View Details")
-                    onTriggered: {
-                        showPcDetailsDialog.pcDetails = model.details
-                        showPcDetailsDialog.open()
-                    }
+                    onTriggered: pcTile.showDetails()
+                    visible: !NativeChrome.enabled
                 }
             }
         }
 
+        // macOS works like a Finder list: a click selects, a double-click (or
+        // Return) opens. Elsewhere a click opens, as it always has.
         onClicked: {
-            if (model.online) {
-                if (!model.serverSupported) {
-                    errorDialog.text = qsTr("The version of GeForce Experience on %1 is not supported by this build of Moonlight. You must update Moonlight to stream from %1.").arg(model.name)
-                    errorDialog.helpText = ""
-                    errorDialog.open()
-                }
-                else if (model.paired) {
-                    // go to game view
-                    var component = Qt.createComponent("AppView.qml")
-                    var appView = component.createObject(stackView, {"computerIndex": index, "objectName": model.name})
-                    stackView.push(appView)
-                }
-                else {
-                    var pin = computerModel.generatePinString()
+            if (NativeChrome.enabled) {
+                pcGrid.currentIndex = index
+                pcGrid.forceActiveFocus()
+            }
+            else {
+                activate()
+            }
+        }
 
-                    // Kick off pairing in the background
-                    computerModel.pairComputer(index, pin)
+        onDoubleClicked: {
+            if (NativeChrome.enabled) {
+                activate()
+            }
+        }
 
-                    // Display the pairing dialog
-                    pairDialog.pin = pin
-                    pairDialog.open()
-                }
-            } else if (!model.online) {
-                // Using open() here because it may be activated by keyboard
-                pcContextMenu.open()
+        Keys.onReturnPressed: {
+            if (NativeChrome.enabled) {
+                activate()
+            }
+        }
+
+        Keys.onEnterPressed: {
+            if (NativeChrome.enabled) {
+                activate()
             }
         }
 
         onPressAndHold: {
+            if (NativeChrome.enabled) {
+                // Right-clicking a row selects it, as in Finder
+                pcGrid.currentIndex = index
+                pcGrid.forceActiveFocus()
+            }
+
             // popup() ensures the menu appears under the mouse cursor
             if (pcContextMenu.popup) {
                 pcContextMenu.popup()
@@ -371,9 +507,7 @@ CenteredGridView {
         }
 
         Keys.onDeletePressed: {
-            deletePcDialog.pcIndex = index
-            deletePcDialog.pcName = model.name
-            deletePcDialog.open()
+            remove()
         }
     }
 
@@ -406,6 +540,8 @@ CenteredGridView {
         property string pcName : ""
         text: qsTr("Are you sure you want to remove '%1'?").arg(pcName)
         standardButtons: Dialog.Yes | Dialog.No
+        acceptText: NativeChrome.enabled ? qsTr("Remove") : ""
+        rejectText: NativeChrome.enabled ? qsTr("Cancel") : ""
 
         onAccepted: {
             computerModel.deleteComputer(pcIndex)
@@ -451,6 +587,12 @@ CenteredGridView {
 
         standardButtons: Dialog.Ok | Dialog.Cancel
 
+        onAboutToShow: {
+            if (NativeChrome.enabled && footer.standardButton(Dialog.Ok)) {
+                footer.standardButton(Dialog.Ok).text = qsTr("Rename")
+            }
+        }
+
         onOpened: {
             // Force keyboard focus on the textbox so keyboard navigation works
             editText.forceActiveFocus()
@@ -476,6 +618,7 @@ CenteredGridView {
                 id: editText
                 placeholderText: renamePcDialog.originalName
                 Layout.fillWidth: true
+                Layout.minimumWidth: NativeChrome.enabled ? 260 : 0
                 focus: true
 
                 Keys.onReturnPressed: {

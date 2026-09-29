@@ -17,6 +17,7 @@ class NativeChrome : public QObject
     Q_PROPERTY(bool canGoBack READ canGoBack WRITE setCanGoBack NOTIFY canGoBackChanged)
     Q_PROPERTY(bool showAddPc READ showAddPc WRITE setShowAddPc NOTIFY showAddPcChanged)
     Q_PROPERTY(bool showHelp READ showHelp WRITE setShowHelp NOTIFY showHelpChanged)
+    Q_PROPERTY(bool showSettings READ showSettings WRITE setShowSettings NOTIFY showSettingsChanged)
     Q_PROPERTY(QString updateText READ updateText WRITE setUpdateText NOTIFY updateTextChanged)
 
 public:
@@ -34,6 +35,8 @@ public:
     void setShowAddPc(bool show);
     bool showHelp() const { return m_ShowHelp; }
     void setShowHelp(bool show);
+    bool showSettings() const { return m_ShowSettings; }
+    void setShowSettings(bool show);
     QString updateText() const { return m_UpdateText; }
     void setUpdateText(const QString& text);
 
@@ -47,6 +50,7 @@ signals:
     void canGoBackChanged();
     void showAddPcChanged();
     void showHelpChanged();
+    void showSettingsChanged();
     void updateTextChanged();
 
     void backClicked();
@@ -61,6 +65,7 @@ private:
     bool m_CanGoBack = false;
     bool m_ShowAddPc = false;
     bool m_ShowHelp = false;
+    bool m_ShowSettings = true;
     QString m_UpdateText;
     void* m_Native = nullptr;  // Platform state (the toolbar delegate on macOS)
 };

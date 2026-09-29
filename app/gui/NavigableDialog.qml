@@ -13,7 +13,37 @@ Dialog {
         if (NativeChrome.enabled) {
             padding = 20
             topPadding = 18
+            var oldBackground = background
             background = macBackgroundComponent.createObject(dialog)
+            if (oldBackground) {
+                oldBackground.destroy()
+            }
+
+            // The fallback style's button box draws old-looking buttons on a square
+            // panel. Dialogs that bring their own (NavigableMessageDialog) keep theirs.
+            if (!footer || footer.objectName !== "macButtonBox") {
+                var oldFooter = footer
+                footer = macButtonBoxComponent.createObject(dialog)
+                if (oldFooter) {
+                    oldFooter.destroy()
+                }
+            }
+        }
+    }
+
+    Component {
+        id: macButtonBoxComponent
+        DialogButtonBox {
+            objectName: "macButtonBox"
+            visible: count > 0
+            alignment: Qt.AlignRight
+            // The style's own is a square panel that pokes out of the rounded dialog
+            background: Item { implicitHeight: 32 }
+            delegate: Button {
+                // The accepting button is the default (accent) button
+                highlighted: DialogButtonBox.buttonRole === DialogButtonBox.AcceptRole ||
+                             DialogButtonBox.buttonRole === DialogButtonBox.YesRole
+            }
         }
     }
 
@@ -31,7 +61,28 @@ Dialog {
         color: NativeChrome.enabled ? Qt.rgba(0, 0, 0, 0.35) : Qt.rgba(0, 0, 0, 0.5)
     }
 
+    // The macOS menu bar stays usable behind modal dialogs, so it counts open ones.
+    // A dialog can be destroyed while open (with its page), so that uncounts it too.
+    property bool countedOpen: false
+    function uncount() {
+        if (countedOpen) {
+            countedOpen = false
+            if (window) {
+                window.openDialogs--
+            }
+        }
+    }
+    onOpened: {
+        if (!countedOpen) {
+            countedOpen = true
+            window.openDialogs++
+        }
+    }
+    Component.onDestruction: uncount()
+
     onClosed: {
+        uncount()
+
         // We must force focus back to the last item. If we don't,
         // gamepad and keyboard navigation will break after a
         // dialog appears.

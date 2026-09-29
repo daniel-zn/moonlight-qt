@@ -1,6 +1,7 @@
 #include "nativechrome.h"
 
 #include <QColor>
+#include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQuickImageProvider>
 #include <QQuickWindow>
@@ -35,7 +36,7 @@ static NSToolbarItemIdentifier const kSettingsItem = @"com.moonlight-stream.sett
 
         [self addItem:kBackItem symbol:@"chevron.backward" label:@"Back" action:@selector(back:)];
         [self addItem:kUpdateItem symbol:@"arrow.down.circle" label:@"Update" action:@selector(update:)];
-        [self addItem:kAddPcItem symbol:@"plus" label:@"Add PC" action:@selector(addPc:)];
+        [self addItem:kAddPcItem symbol:@"plus" label:@"Add Computer" action:@selector(addPc:)];
         [self addItem:kHelpItem symbol:@"questionmark.circle" label:@"Help" action:@selector(help:)];
         [self addItem:kSettingsItem symbol:@"gearshape" label:@"Settings" action:@selector(settings:)];
 
@@ -102,6 +103,7 @@ static NSToolbarItemIdentifier const kSettingsItem = @"com.moonlight-stream.sett
     [self setItem:kBackItem visible:chrome->canGoBack()];
     [self setItem:kAddPcItem visible:chrome->showAddPc()];
     [self setItem:kHelpItem visible:chrome->showHelp()];
+    [self setItem:kSettingsItem visible:chrome->showSettings()];
 
     QString updateText = chrome->updateText();
     [self setItem:kUpdateItem visible:!updateText.isEmpty()];
@@ -116,7 +118,8 @@ static NSToolbarItemIdentifier const kSettingsItem = @"com.moonlight-stream.sett
 
 @end
 
-// Renders "image://sfsymbol/<name>/<RRGGBB>" as the SF Symbol in that color
+// Renders "image://sfsymbol/<name>/<RRGGBB>" as the SF Symbol in that color, or
+// "image://sfsymbol/<name>/multicolor" in the symbol's own colors (like the yellow alert triangle)
 class SfSymbolImageProvider : public QQuickImageProvider
 {
 public:
@@ -127,7 +130,9 @@ public:
         @autoreleasepool {
             int slash = id.lastIndexOf('/');
             QString name = slash > 0 ? id.left(slash) : id;
-            QColor color = slash > 0 ? QColor("#" + id.mid(slash + 1)) : QColor(Qt::white);
+            QString colorSpec = slash > 0 ? id.mid(slash + 1) : QString();
+            bool multicolor = colorSpec == QLatin1String("multicolor");
+            QColor color = !colorSpec.isEmpty() && !multicolor ? QColor("#" + colorSpec) : QColor(Qt::white);
 
             // Render at 2x so it stays sharp on Retina displays
             int logical = qMax(16, requestedSize.isValid() ? qMax(requestedSize.width(), requestedSize.height()) : 64);
@@ -142,9 +147,11 @@ public:
             }
 
             NSColor* tint = [NSColor colorWithSRGBRed:color.redF() green:color.greenF() blue:color.blueF() alpha:color.alphaF()];
+            NSImageSymbolConfiguration* coloring = multicolor ? [NSImageSymbolConfiguration configurationPreferringMulticolor]
+                                                              : [NSImageSymbolConfiguration configurationWithHierarchicalColor:tint];
             NSImageSymbolConfiguration* config =
                 [[NSImageSymbolConfiguration configurationWithPointSize:pixels * 0.8 weight:NSFontWeightRegular]
-                    configurationByApplyingConfiguration:[NSImageSymbolConfiguration configurationWithHierarchicalColor:tint]];
+                    configurationByApplyingConfiguration:coloring];
             symbol = [symbol imageWithSymbolConfiguration:config];
 
             // Fit the symbol into a square canvas, keeping its aspect ratio
@@ -202,7 +209,8 @@ bool NativeChrome::isEnabled() const
 
 void NativeChrome::attach(QQuickWindow* window)
 {
-    if (window == nullptr || m_Native != nullptr) {
+    // Only a Cocoa window has an NSView behind it (not, say, the offscreen platform)
+    if (window == nullptr || m_Native != nullptr || QGuiApplication::platformName() != QLatin1String("cocoa")) {
         return;
     }
 

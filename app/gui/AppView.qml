@@ -286,7 +286,34 @@ CenteredGridView {
             stackView.push(segue)
         }
 
+        // Read by the macOS menu bar, which acts on the selected game
+        readonly property bool appRunning: model.running
+        readonly property bool appHidden: model.hidden
+        readonly property bool appDirectLaunch: model.directLaunch
+
+        function toggleDirectLaunch() {
+            appModel.setAppDirectLaunch(model.index, !model.directLaunch)
+        }
+
+        function toggleHidden() {
+            appModel.setAppHidden(model.index, !model.hidden)
+        }
+
+        // macOS works like a Finder list: a click selects, a double-click (or
+        // Return) launches or resumes the game
+        onDoubleClicked: {
+            if (NativeChrome.enabled) {
+                launchOrResumeSelectedApp(true)
+            }
+        }
+
         onClicked: {
+            if (NativeChrome.enabled) {
+                appGrid.currentIndex = index
+                appGrid.forceActiveFocus()
+                return
+            }
+
             // Only allow clicking on the box art for non-running games.
             // For running games, buttons will appear to resume or quit which
             // will handle starting the game and clicks on the box art will
@@ -297,6 +324,12 @@ CenteredGridView {
         }
 
         onPressAndHold: {
+            if (NativeChrome.enabled) {
+                // Right-clicking a row selects it, as in Finder
+                appGrid.currentIndex = index
+                appGrid.forceActiveFocus()
+            }
+
             // popup() ensures the menu appears under the mouse cursor
             if (appContextMenu.popup) {
                 appContextMenu.popup()
@@ -316,6 +349,12 @@ CenteredGridView {
         }
 
         Keys.onReturnPressed: {
+            if (NativeChrome.enabled) {
+                // The base delegate's handler only selects on macOS
+                launchOrResumeSelectedApp(true)
+                return
+            }
+
             // Open the app context menu if activated via the gamepad or keyboard
             // for running games. If the game isn't running, the above onClicked
             // method will handle the launch.
@@ -327,6 +366,12 @@ CenteredGridView {
         }
 
         Keys.onEnterPressed: {
+            if (NativeChrome.enabled) {
+                // The base delegate's handler only selects on macOS
+                launchOrResumeSelectedApp(true)
+                return
+            }
+
             // Open the app context menu if activated via the gamepad or keyboard
             // for running games. If the game isn't running, the above onClicked
             // method will handle the launch.
@@ -363,11 +408,16 @@ CenteredGridView {
                     onTriggered: doQuitGame()
                     visible: model.running
                 }
+                MenuSeparator {
+                    visible: NativeChrome.enabled
+                    height: visible ? implicitHeight : 0
+                }
                 NavigableMenuItem {
                     checkable: true
                     checked: model.directLaunch
-                    text: qsTr("Direct Launch")
-                    onTriggered: appModel.setAppDirectLaunch(model.index, !model.directLaunch)
+                    // macOS menus have no tooltips, so the item says what it does
+                    text: NativeChrome.enabled ? qsTr("Launch Automatically When Opening PC") : qsTr("Direct Launch")
+                    onTriggered: toggleDirectLaunch()
                     enabled: !model.hidden
 
                     ToolTip.text: qsTr("Launch this app immediately when the host is selected, bypassing the app selection grid.")
@@ -379,7 +429,7 @@ CenteredGridView {
                     checkable: true
                     checked: model.hidden
                     text: qsTr("Hide Game")
-                    onTriggered: appModel.setAppHidden(model.index, !model.hidden)
+                    onTriggered: toggleHidden()
                     enabled: model.hidden || (!model.running && !model.directLaunch)
 
                     ToolTip.text: qsTr("Hide this game from the app grid. To access hidden games, right-click on the host and choose %1.").arg(qsTr("View All Apps"))
@@ -398,7 +448,7 @@ CenteredGridView {
 
         Label {
             text: qsTr("This computer doesn't seem to have any applications or some applications are hidden")
-            font.pointSize: 20
+            font.pointSize: NativeChrome.enabled ? 13 : 20
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
         }
@@ -412,6 +462,8 @@ CenteredGridView {
         property int nextAppIndex: 0
         text:qsTr("Are you sure you want to quit %1? Any unsaved progress will be lost.").arg(appName)
         standardButtons: Dialog.Yes | Dialog.No
+        acceptText: NativeChrome.enabled ? qsTr("Quit Game") : ""
+        rejectText: NativeChrome.enabled ? qsTr("Cancel") : ""
 
         function quitApp() {
             var component = Qt.createComponent("QuitSegue.qml")

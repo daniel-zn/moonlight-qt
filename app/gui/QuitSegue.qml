@@ -1,6 +1,8 @@
 import QtQuick 2.0
 import QtQuick.Controls 2.2
 
+import NativeChrome 1.0
+
 import ComputerManager 1.0
 import Session 1.0
 
@@ -35,7 +37,7 @@ Item {
 
     StackView.onActivated: {
         // Hide the toolbar before we start loading
-        toolBar.visible = false
+        window.chromeHidden = true
 
         // Connect the quit completion signal
         ComputerManager.quitAppCompleted.connect(quitAppCompleted)
@@ -48,7 +50,7 @@ Item {
 
     StackView.onDeactivating: {
         // Show the toolbar again
-        toolBar.visible = true
+        window.chromeHidden = false
 
         // Disconnect the signal
         ComputerManager.quitAppCompleted.disconnect(quitAppCompleted)
@@ -67,7 +69,7 @@ Item {
             id: stageLabel
             height: stageSpinner.height
             text: stageText
-            font.pointSize: 20
+            font.pointSize: NativeChrome.enabled ? 14 : 20
             verticalAlignment: Text.AlignVCenter
 
             wrapMode: Text.Wrap

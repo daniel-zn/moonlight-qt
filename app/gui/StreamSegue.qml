@@ -1,5 +1,7 @@
 import QtQuick 2.0
 import QtQuick.Controls 2.2
+
+import NativeChrome 1.0
 import QtQuick.Window 2.2
 
 import SdlGamepadKeyNavigation 1.0
@@ -102,7 +104,7 @@ Item {
 
     StackView.onDeactivating: {
         // Show the toolbar again when popped off the stack
-        toolBar.visible = true
+        window.chromeHidden = false
 
         // Re-enable GUI gamepad usage now
         SdlGamepadKeyNavigation.enable()
@@ -110,7 +112,7 @@ Item {
 
     StackView.onActivated: {
         // Hide the toolbar before we start loading
-        toolBar.visible = false
+        window.chromeHidden = true
 
         // Hook up our signals
         session.stageStarting.connect(stageStarting)
@@ -183,6 +185,13 @@ Item {
                 var toast = Qt.createQmlObject('import QtQuick.Controls 2.2; ToolTip {}', parent, '')
                 toast.timeout = 3000
                 toast.text = text
+                if (NativeChrome.enabled) {
+                    // Match the macOS tooltip style and wrap within the compact window
+                    toast.background = macToolTipBackground.createObject(toast)
+                    toast.font.pixelSize = 12
+                    toast.contentWidth = Math.min(toast.implicitContentWidth, window.width - 60)
+                    toast.x = (parent.width - toast.width) / 2
+                }
                 toast.y += yOffset
                 toast.visible = true
 
@@ -214,7 +223,7 @@ Item {
             id: stageLabel
             height: stageSpinner.height
             text: stageText
-            font.pointSize: 20
+            font.pointSize: NativeChrome.enabled ? 14 : 20
             verticalAlignment: Text.AlignVCenter
 
             wrapMode: Text.Wrap
@@ -226,7 +235,11 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 50
         anchors.horizontalCenter: parent.horizontalCenter
-        font.pointSize: 18
+        // Wrap within the compact macOS window
+        width: NativeChrome.enabled ? parent.width - 40 : implicitWidth
+        horizontalAlignment: Text.AlignHCenter
+        opacity: NativeChrome.enabled ? 0.7 : 1.0
+        font.pointSize: NativeChrome.enabled ? 12 : 18
         verticalAlignment: Text.AlignVCenter
 
         wrapMode: Text.Wrap

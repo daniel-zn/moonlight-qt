@@ -31,7 +31,12 @@ What it adds on top of upstream Moonlight:
   - A translucent glass window and native macOS controls that follow light/dark mode and the accent color.
   - A compact window with lists instead of tiles: PCs with their status, and games with a small box art
     thumbnail and Resume/Quit on a running game. Settings stack into one column when the window is narrow.
-  - SF Symbol icons and rounded dialogs.
+  - Lists work like Finder: click selects, double-click (or Return) opens. Double-clicking a PC opens its games,
+    pairs it, or, if it's asleep, sends Wake-on-LAN and shows "Waking up…". Double-clicking a game launches or
+    resumes it.
+  - A real menu bar (Computer, Game, Go, Help) with every action and its shortcut (⌘N add, ⌘O open, ⌘I info,
+    ⌘R launch, ⌘[ back, ⌘, settings), and native right-click menus.
+  - SF Symbol icons and rounded dialogs whose buttons say what they do (Remove, Quit Game, Add, Rename).
 - **Build changes:**
   - `moonlight-common-c` (with the microphone protocol) is included directly instead of as a submodule.
   - macOS: a microphone usage description and audio-input entitlement. DMGs built without a signing identity are

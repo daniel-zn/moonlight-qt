@@ -30,6 +30,15 @@ void NativeChrome::setShowHelp(bool show)
     }
 }
 
+void NativeChrome::setShowSettings(bool show)
+{
+    if (m_ShowSettings != show) {
+        m_ShowSettings = show;
+        updateToolbar();
+        emit showSettingsChanged();
+    }
+}
+
 void NativeChrome::setUpdateText(const QString& text)
 {
     if (m_UpdateText != text) {

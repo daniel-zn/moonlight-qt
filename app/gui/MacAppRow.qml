@@ -15,7 +15,10 @@ Item {
     // Leave room on the right for AppView's Resume/Quit buttons
     property real trailingSpace: 0
 
-    readonly property color textColor: selected ? "white" : palette.text
+    // White on the accent color; in an inactive window the selection turns
+    // gray, so the text stays dark there, as in Finder
+    readonly property bool onAccent: selected && Window.active
+    readonly property color textColor: onAccent ? "white" : palette.text
 
     Rectangle {
         anchors.fill: parent
@@ -61,7 +64,7 @@ Item {
             Rectangle {
                 width: 7; height: 7; radius: 3.5
                 anchors.verticalCenter: parent.verticalCenter
-                color: row.selected ? "white" : "#30D158"
+                color: row.onAccent ? "white" : "#30D158"
             }
             Label {
                 text: qsTr("Running")

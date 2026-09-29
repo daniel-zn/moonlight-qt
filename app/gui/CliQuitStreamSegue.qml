@@ -1,6 +1,8 @@
 import QtQuick 2.0
 import QtQuick.Controls 2.2
 
+import NativeChrome 1.0
+
 import ComputerManager 1.0
 import Session 1.0
 
@@ -20,7 +22,7 @@ Item {
 
     StackView.onActivated: {
         if (!launcher.isExecuted()) {
-            toolBar.visible = false
+            window.chromeHidden = true
             launcher.searchingComputer.connect(onSearchingComputer)
             launcher.quittingApp.connect(onQuittingApp)
             launcher.failed.connect(onFailure)
@@ -41,7 +43,7 @@ Item {
             id: stageLabel
             height: stageSpinner.height
             text: stageText
-            font.pointSize: 20
+            font.pointSize: NativeChrome.enabled ? 14 : 20
             verticalAlignment: Text.AlignVCenter
 
             wrapMode: Text.Wrap
