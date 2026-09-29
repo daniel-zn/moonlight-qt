@@ -1,10 +1,13 @@
 import QtQuick 2.9
 import QtQuick.Controls 2.2
-import QtQuick.Controls.Material 2.2
+// Qualified so Material's control types don't replace the native macOS style's.
+// Material's attached properties still apply where Material is the style.
+import QtQuick.Controls.Material 2.2 as Mat
 
 import AppModel 1.0
 import ComputerManager 1.0
 import SdlGamepadKeyNavigation 1.0
+import NativeChrome 1.0
 
 CenteredGridView {
     property int computerIndex
@@ -71,8 +74,28 @@ CenteredGridView {
     model: appModel
 
     delegate: NavigableItemDelegate {
+        id: appTile
         width: 220; height: 287;
         grid: appGrid
+
+        // macOS: the art itself is the tile (rounded, shadowed, lifts on hover),
+        // with a focus ring for keyboard and gamepad selection
+        Component.onCompleted: {
+            if (NativeChrome.enabled) {
+                background = macFocusRingComponent.createObject(appTile)
+            }
+        }
+
+        Component {
+            id: macFocusRingComponent
+            Rectangle {
+                radius: 18
+                color: "transparent"
+                border.width: 3
+                border.color: appTile.palette.highlight
+                visible: appTile.highlighted
+            }
+        }
 
         property alias appContextMenu: appContextMenuLoader.item
         property alias appNameText: appNameTextLoader.item
@@ -87,6 +110,8 @@ CenteredGridView {
             anchors.horizontalCenter: parent.horizontalCenter
             y: 10
             source: model.boxart
+            // On macOS this still sizes the tile and detects placeholders, but MacBoxArt draws it
+            opacity: NativeChrome.enabled ? 0 : 1
 
             onSourceSizeChanged: {
                 // Nearly all of Nvidia's official box art does not match the dimensions of placeholder
@@ -116,12 +141,33 @@ CenteredGridView {
             ToolTip.visible: (parent.hovered || parent.highlighted) && (!appNameText || appNameText.truncated)
         }
 
+        // Only macOS loads this (it needs Qt 6's QtQuick.Effects)
+        Loader {
+            active: NativeChrome.enabled
+            anchors.fill: appIcon
+            source: "MacBoxArt.qml"
+            onLoaded: {
+                item.source = Qt.binding(function() { return model.boxart })
+                item.lifted = Qt.binding(function() { return appTile.hovered || appTile.highlighted })
+            }
+        }
+
         Loader {
             active: model.running
             asynchronous: true
             anchors.fill: appIcon
 
             sourceComponent: Item {
+                Component {
+                    id: macOverlayButtonComponent
+                    Rectangle {
+                        radius: width / 2
+                        color: parent && parent.hovered ? Qt.rgba(0, 0, 0, 0.75) : Qt.rgba(0, 0, 0, 0.55)
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.25)
+                    }
+                }
+
                 RoundButton {
                     // Don't steal focus from the toolbar buttons
                     focusPolicy: Qt.NoFocus
@@ -129,12 +175,19 @@ CenteredGridView {
                     anchors.horizontalCenterOffset: appIcon.isPlaceholder ? -47 : 0
                     anchors.verticalCenterOffset: appIcon.isPlaceholder ? -75 : -60
                     anchors.centerIn: parent
-                    implicitWidth: 85
-                    implicitHeight: 85
+                    implicitWidth: NativeChrome.enabled ? 64 : 85
+                    implicitHeight: NativeChrome.enabled ? 64 : 85
 
-                    icon.source: "qrc:/res/play_arrow_FILL1_wght700_GRAD200_opsz48.svg"
-                    icon.width: 75
-                    icon.height: 75
+                    icon.source: NativeChrome.enabled ? NativeChrome.symbol("play.fill", "#FFFFFF") : "qrc:/res/play_arrow_FILL1_wght700_GRAD200_opsz48.svg"
+                    icon.width: NativeChrome.enabled ? 28 : 75
+                    icon.height: NativeChrome.enabled ? 28 : 75
+                    icon.color: NativeChrome.enabled ? "white" : undefined
+
+                    Component.onCompleted: {
+                        if (NativeChrome.enabled) {
+                            background = macOverlayButtonComponent.createObject(this)
+                        }
+                    }
 
                     onClicked: {
                         launchOrResumeSelectedApp(true)
@@ -145,7 +198,7 @@ CenteredGridView {
                     ToolTip.timeout: 3000
                     ToolTip.visible: hovered
 
-                    Material.background: "#D0808080"
+                    Mat.Material.background: "#D0808080"
                 }
 
                 RoundButton {
@@ -155,12 +208,19 @@ CenteredGridView {
                     anchors.horizontalCenterOffset: appIcon.isPlaceholder ? 47 : 0
                     anchors.verticalCenterOffset: appIcon.isPlaceholder ? -75 : 60
                     anchors.centerIn: parent
-                    implicitWidth: 85
-                    implicitHeight: 85
+                    implicitWidth: NativeChrome.enabled ? 64 : 85
+                    implicitHeight: NativeChrome.enabled ? 64 : 85
 
-                    icon.source: "qrc:/res/stop_FILL1_wght700_GRAD200_opsz48.svg"
-                    icon.width: 75
-                    icon.height: 75
+                    icon.source: NativeChrome.enabled ? NativeChrome.symbol("stop.fill", "#FFFFFF") : "qrc:/res/stop_FILL1_wght700_GRAD200_opsz48.svg"
+                    icon.width: NativeChrome.enabled ? 28 : 75
+                    icon.height: NativeChrome.enabled ? 28 : 75
+                    icon.color: NativeChrome.enabled ? "white" : undefined
+
+                    Component.onCompleted: {
+                        if (NativeChrome.enabled) {
+                            background = macOverlayButtonComponent.createObject(this)
+                        }
+                    }
 
                     onClicked: {
                         doQuitGame()
@@ -171,7 +231,7 @@ CenteredGridView {
                     ToolTip.timeout: 3000
                     ToolTip.visible: hovered
 
-                    Material.background: "#D0808080"
+                    Mat.Material.background: "#D0808080"
                 }
             }
         }

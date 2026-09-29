@@ -195,6 +195,7 @@ SOURCES += \
     streaming/audio/audio.cpp \
     streaming/audio/capture/microphonecapture.cpp \
     streaming/audio/capture/micnoisefilter.cpp \
+    gui/nativechrome.cpp \
     streaming/audio/renderers/sdlaud.cpp \
     gui/computermodel.cpp \
     gui/appmodel.cpp \
@@ -234,6 +235,7 @@ HEADERS += \
     streaming/audio/capture/microphonecapture.h \
     streaming/audio/capture/micpermission.h \
     streaming/audio/capture/micnoisefilter.h \
+    gui/nativechrome.h \
     streaming/audio/renderers/renderer.h \
     streaming/audio/renderers/sdl.h \
     gui/computermodel.h \
@@ -410,7 +412,9 @@ win32:!winrt {
         streaming/video/ffmpeg-renderers/pacer/dxvsyncsource.h
 }
 !macx {
-    SOURCES += streaming/audio/capture/micpermission.cpp
+    SOURCES += \
+        streaming/audio/capture/micpermission.cpp \
+        gui/nativechrome_generic.cpp
 }
 macx {
     message(VideoToolbox renderer selected)
@@ -427,6 +431,7 @@ macx {
 
     SOURCES += \
         streaming/audio/capture/micpermission_mac.mm \
+        gui/nativechrome_mac.mm \
         streaming/video/ffmpeg-renderers/vt_base.mm \
         streaming/video/ffmpeg-renderers/vt_avsamplelayer.mm \
         streaming/video/ffmpeg-renderers/vt_metal.mm

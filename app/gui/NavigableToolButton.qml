@@ -2,14 +2,18 @@ import QtQuick 2.0
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
 
+import NativeChrome 1.0
+
 ToolButton {
     property string iconSource
 
     activeFocusOnTab: true
 
     icon.source: iconSource
-    icon.width: background.width
-    icon.height: background.height
+    // The native macOS style sizes the button from its icon, so tying the icon to
+    // the background there would never settle
+    icon.width: NativeChrome.enabled ? 22 : background.width
+    icon.height: NativeChrome.enabled ? 22 : background.height
 
     // This determines the size of the Material highlight. We increase it
     // from the default because we use larger than normal icons for TV readability.

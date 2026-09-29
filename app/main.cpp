@@ -4,6 +4,7 @@
 #include <QQmlContext>
 #include <QIcon>
 #include <QQuickStyle>
+#include <QQuickWindow>
 #include <QMutex>
 #include <QtDebug>
 #include <QNetworkProxyFactory>
@@ -48,6 +49,7 @@
 #include "utils.h"
 #include "gui/computermodel.h"
 #include "gui/appmodel.h"
+#include "gui/nativechrome.h"
 #include "backend/autoupdatechecker.h"
 #include "backend/computermanager.h"
 #include "backend/systemproperties.h"
@@ -963,8 +965,15 @@ int main(int argc, char *argv[])
     // Create the identity manager on the main thread
     IdentityManager::get();
 
+#ifdef Q_OS_DARWIN
+    // Native macOS controls; the window draws on a translucent glass backdrop
+    // (see NativeChrome), so it needs an alpha channel
+    QQuickStyle::setStyle("macOS");
+    QQuickWindow::setDefaultAlphaBuffer(true);
+#else
     // We require the Material theme
     QQuickStyle::setStyle("Material");
+#endif
 
     // Our icons are styled for a dark theme, so we do not allow the user to override this
     qputenv("QT_QUICK_CONTROLS_MATERIAL_THEME", "Dark");
@@ -984,6 +993,7 @@ int main(int argc, char *argv[])
     }
 
     QQmlApplicationEngine engine;
+    NativeChrome::registerTypes(&engine);
     QString initialView;
     bool hasGUI = true;
 

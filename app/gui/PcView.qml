@@ -8,6 +8,7 @@ import ComputerManager 1.0
 import StreamingPreferences 1.0
 import SystemProperties 1.0
 import SdlGamepadKeyNavigation 1.0
+import NativeChrome 1.0
 
 CenteredGridView {
     property ComputerModel computerModel : createModel()
@@ -15,9 +16,10 @@ CenteredGridView {
     id: pcGrid
     focus: true
     activeFocusOnTab: true
-    topMargin: 20
+    topMargin: NativeChrome.enabled ? 28 : 20
     bottomMargin: 5
-    cellWidth: 310; cellHeight: 330;
+    cellWidth: NativeChrome.enabled ? 232 : 310
+    cellHeight: NativeChrome.enabled ? 252 : 330
     objectName: qsTr("Computers")
 
     Component.onCompleted: {
@@ -107,13 +109,110 @@ CenteredGridView {
     model: computerModel
 
     delegate: NavigableItemDelegate {
-        width: 300; height: 320;
+        id: pcTile
+        width: NativeChrome.enabled ? 212 : 300
+        height: NativeChrome.enabled ? 232 : 320
         grid: pcGrid
 
         property alias pcContextMenu : pcContextMenuLoader.item
 
+        // macOS: a rounded card with an SF Symbol and a status line, in the style of
+        // Finder's icon view. Other platforms keep the Material tile below.
+        Component.onCompleted: {
+            if (NativeChrome.enabled) {
+                background = macCardComponent.createObject(pcTile)
+            }
+        }
+
+        Component {
+            id: macCardComponent
+            Rectangle {
+                radius: 18
+                color: pcTile.down ? Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.16)
+                     : pcTile.hovered || pcTile.highlighted ? Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.10)
+                     : Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.05)
+                border.width: pcTile.highlighted ? 3 : 1
+                border.color: pcTile.highlighted ? pcTile.palette.highlight
+                            : Qt.rgba(pcTile.palette.text.r, pcTile.palette.text.g, pcTile.palette.text.b, 0.08)
+                Behavior on color { ColorAnimation { duration: 120 } }
+            }
+        }
+
+        Item {
+            visible: NativeChrome.enabled
+            anchors.fill: parent
+
+            Image {
+                id: macPcIcon
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 26
+                source: NativeChrome.enabled ? NativeChrome.symbol("desktopcomputer", pcTile.palette.text) : ""
+                sourceSize { width: 112; height: 112 }
+                width: 112; height: 112
+                smooth: true
+                opacity: model.online ? 1.0 : 0.55
+            }
+
+            // Status badge on the monitor's corner
+            Rectangle {
+                visible: !model.statusUnknown
+                width: 34; height: 34; radius: 17
+                anchors.right: macPcIcon.right
+                anchors.bottom: macPcIcon.bottom
+                anchors.bottomMargin: 14
+                color: pcTile.palette.window
+                Image {
+                    anchors.centerIn: parent
+                    width: 26; height: 26
+                    sourceSize { width: 26; height: 26 }
+                    source: !NativeChrome.enabled ? ""
+                          : !model.online ? NativeChrome.symbol("exclamationmark.triangle.fill", "#FF9F0A")
+                          : !model.paired ? NativeChrome.symbol("lock.fill", pcTile.palette.text)
+                          : NativeChrome.symbol("checkmark.circle.fill", "#30D158")
+                }
+            }
+
+            BusyIndicator {
+                anchors.centerIn: macPcIcon
+                width: 40; height: 40
+                visible: model.statusUnknown
+                running: visible
+            }
+
+            Column {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: 14
+                anchors.bottomMargin: 18
+                spacing: 3
+
+                Label {
+                    width: parent.width
+                    text: model.name
+                    font.pixelSize: 17
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                }
+                Label {
+                    width: parent.width
+                    text: model.statusUnknown ? qsTr("Connecting…")
+                        : !model.online ? qsTr("Offline")
+                        : !model.paired ? qsTr("Not paired")
+                        : qsTr("Online")
+                    font.pixelSize: 12
+                    opacity: 0.6
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                }
+            }
+        }
+
         Image {
             id: pcIcon
+            visible: !NativeChrome.enabled
             anchors.horizontalCenter: parent.horizontalCenter
             source: "qrc:/res/desktop_windows-48px.svg"
             sourceSize {
@@ -128,7 +227,7 @@ CenteredGridView {
             anchors.horizontalCenter: pcIcon.horizontalCenter
             anchors.verticalCenter: pcIcon.verticalCenter
             anchors.verticalCenterOffset: !model.online ? -18 : -16
-            visible: !model.statusUnknown && (!model.online || !model.paired)
+            visible: !NativeChrome.enabled && !model.statusUnknown && (!model.online || !model.paired)
             source: !model.online ? "qrc:/res/warning_FILL1_wght300_GRAD200_opsz24.svg" : "qrc:/res/baseline-lock-24px.svg"
             sourceSize {
                 width: !model.online ? 75 : 70
@@ -143,12 +242,13 @@ CenteredGridView {
             anchors.verticalCenterOffset: -15
             width: 75
             height: 75
-            visible: model.statusUnknown
+            visible: !NativeChrome.enabled && model.statusUnknown
             running: visible
         }
 
         Label {
             id: pcNameText
+            visible: !NativeChrome.enabled
             text: model.name
 
             width: parent.width

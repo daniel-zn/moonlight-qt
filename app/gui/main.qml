@@ -2,13 +2,16 @@ import QtQuick 2.9
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
 import QtQuick.Window 2.2
-import QtQuick.Controls.Material 2.2
+// Qualified so Material's control types don't replace the native macOS style's.
+// Material's attached properties still apply where Material is the style.
+import QtQuick.Controls.Material 2.2 as Mat
 
 import ComputerManager 1.0
 import AutoUpdateChecker 1.0
 import StreamingPreferences 1.0
 import SystemProperties 1.0
 import SdlGamepadKeyNavigation 1.0
+import NativeChrome 1.0
 
 ApplicationWindow {
     property bool pollingActive: false
@@ -22,13 +25,16 @@ ApplicationWindow {
     width: 1280
     height: 600
 
+    // On macOS the window sits on a Liquid Glass backdrop drawn by NativeChrome
+    color: NativeChrome.enabled ? "transparent" : Mat.Material.background
+
     // This function runs prior to creation of the initial StackView item
     function doEarlyInit() {
         // Override the background color to Material 2 colors for Qt 6.5+
         // in order to improve contrast between GFE's placeholder box art
         // and the background of the app grid.
         if (SystemProperties.usesMaterial3Theme) {
-            Material.background = "#303030"
+            Mat.Material.background = "#303030"
         }
 
         SdlGamepadKeyNavigation.enable()
@@ -48,6 +54,11 @@ ApplicationWindow {
             }
         } else {
             window.showFullScreen()
+        }
+
+        // Replace our toolbar with the native one where the platform has it
+        if (NativeChrome.enabled) {
+            NativeChrome.attach(window)
         }
 
         // Display any modal dialogs for configuration warnings
@@ -233,9 +244,26 @@ ApplicationWindow {
         }
     }
 
+    // Native toolbar state and actions (macOS). These mirror the QML toolbar below.
+    Binding { target: window; property: "title"; value: stackView.currentItem ? stackView.currentItem.objectName : ""; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "canGoBack"; value: stackView.depth > 1; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "showAddPc"; value: stackView.currentItem instanceof PcView; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "showHelp"; value: SystemProperties.hasBrowser; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "updateText"; value: updateButton.visible ? updateButton.ToolTip.text : ""; when: NativeChrome.enabled }
+
+    Connections {
+        target: NativeChrome
+        function onBackClicked() { goBack() }
+        function onAddPcClicked() { addPcButton.clicked() }
+        function onHelpClicked() { helpButton.clicked() }
+        function onSettingsClicked() { settingsButton.clicked() }
+        function onUpdateClicked() { updateButton.clicked() }
+    }
+
     header: ToolBar {
         id: toolBar
-        height: 60
+        visible: !NativeChrome.enabled
+        height: visible ? 60 : 0
         anchors.topMargin: 5
         anchors.bottomMargin: 5
 

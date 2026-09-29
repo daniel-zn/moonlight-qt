@@ -7,8 +7,15 @@ import StreamingPreferences 1.0
 import ComputerManager 1.0
 import SdlGamepadKeyNavigation 1.0
 import SystemProperties 1.0
+import NativeChrome 1.0
 
 Flickable {
+    // Section headings: Moonlight's sky blue elsewhere, plain system text on macOS
+    // (like System Settings), which reads well in both light and dark mode
+    function sectionTitle(text) {
+        return NativeChrome.enabled ? text : "<font color=\"skyblue\">" + text + "</font>"
+    }
+
     id: settingsPage
     objectName: qsTr("Settings")
 
@@ -105,7 +112,7 @@ Flickable {
             id: basicSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Basic Settings") + "</font>"
+            title: sectionTitle(qsTr("Basic Settings"))
             font.pointSize: 12
 
             Column {
@@ -881,7 +888,7 @@ Flickable {
             id: audioSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Audio Settings") + "</font>"
+            title: sectionTitle(qsTr("Audio Settings"))
             font.pointSize: 12
 
             Column {
@@ -1076,9 +1083,10 @@ Flickable {
                     width: parent.width
                     height: 16
                     radius: 8
-                    color: "#202733"
+                    color: NativeChrome.enabled ? Qt.rgba(palette.text.r, palette.text.g, palette.text.b, 0.08) : "#202733"
                     border.width: 1
-                    border.color: StreamingPreferences.microphoneMonitorSignalDetected ? "#45c486" : "#3d4857"
+                    border.color: StreamingPreferences.microphoneMonitorSignalDetected ? "#45c486"
+                                : NativeChrome.enabled ? Qt.rgba(palette.text.r, palette.text.g, palette.text.b, 0.15) : "#3d4857"
 
                     Rectangle {
                         anchors.left: parent.left
@@ -1087,7 +1095,8 @@ Flickable {
                         height: parent.height
                         radius: parent.radius
                         visible: StreamingPreferences.microphoneMonitorLevel > 0.001
-                        color: StreamingPreferences.microphoneMonitorSignalDetected ? "#45c486" : "#5f6f86"
+                        color: StreamingPreferences.microphoneMonitorSignalDetected ? "#45c486"
+                             : NativeChrome.enabled ? palette.highlight : "#5f6f86"
                     }
                 }
 
@@ -1104,7 +1113,7 @@ Flickable {
             id: hostSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Host Settings") + "</font>"
+            title: sectionTitle(qsTr("Host Settings"))
             font.pointSize: 12
 
             Column {
@@ -1144,7 +1153,7 @@ Flickable {
             id: uiSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("UI Settings") + "</font>"
+            title: sectionTitle(qsTr("UI Settings"))
             font.pointSize: 12
 
             Column {
@@ -1453,7 +1462,7 @@ Flickable {
             id: inputSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Input Settings") + "</font>"
+            title: sectionTitle(qsTr("Input Settings"))
             font.pointSize: 12
 
             Column {
@@ -1601,7 +1610,7 @@ Flickable {
             id: gamepadSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Gamepad Settings") + "</font>"
+            title: sectionTitle(qsTr("Gamepad Settings"))
             font.pointSize: 12
 
             Column {
@@ -1676,7 +1685,7 @@ Flickable {
             id: advancedSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Advanced Settings") + "</font>"
+            title: sectionTitle(qsTr("Advanced Settings"))
             font.pointSize: 12
 
             Column {
