@@ -37,6 +37,10 @@ What it adds on top of upstream Moonlight:
   - A real menu bar (Computer, Game, Go, Help) with every action and its shortcut (⌘N add, ⌘O open, ⌘I info,
     ⌘R launch, ⌘[ back, ⌘, settings), and native right-click menus.
   - SF Symbol icons and rounded dialogs whose buttons say what they do (Remove, Quit Game, Add, Rename).
+  - Settings laid out like System Settings: a sidebar of sections (Video & Display, Audio & Microphone,
+    Keyboard & Mouse, Game Controllers, Host PC, General, Advanced), one section at a time, with macOS type sizes.
+    The window grows while Settings is open and returns to its size afterwards.
+  - ⌘Q (or Dock ▸ Quit) during a stream ends the stream cleanly and then quits Moonlight.
 - **Build changes:**
   - `moonlight-common-c` (with the microphone protocol) is included directly instead of as a submodule.
   - macOS: a microphone usage description and audio-input entitlement. DMGs built without a signing identity are

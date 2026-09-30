@@ -34,6 +34,7 @@
 
 #include <QtEndian>
 #include <QCoreApplication>
+#include <QEvent>
 #include <QThreadPool>
 #include <QSvgRenderer>
 #include <QPainter>
@@ -1813,6 +1814,51 @@ void Session::destroyMicrophoneCapture()
     m_MicrophoneEnabled = false;
 }
 
+#ifdef Q_OS_DARWIN
+// While streaming, the SDL loop below owns the main thread, so a quit request from
+// macOS (Cmd+Q, Dock > Quit, logging out) would sit in Qt's queue until the stream
+// ended on its own. Catch it and end the stream instead; the cleanup task then
+// quits the app (the same path as the quit-and-exit key combo).
+class QuitDuringStreamFilter : public QObject
+{
+public:
+    QuitDuringStreamFilter(Session* session) : m_Session(session)
+    {
+        QCoreApplication::instance()->installEventFilter(this);
+    }
+
+    ~QuitDuringStreamFilter() override
+    {
+        QCoreApplication::instance()->removeEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (watched == QCoreApplication::instance() && event->type() == QEvent::Quit) {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                        "App quit requested while streaming");
+
+            // Respect the "quit app on host after streaming" preference
+            m_Session->setShouldExit(false);
+
+            SDL_Event quitEvent;
+            quitEvent.type = SDL_QUIT;
+            quitEvent.quit.timestamp = SDL_GetTicks();
+            SDL_PushEvent(&quitEvent);
+
+            // Decline the immediate termination: the stream shuts down cleanly first
+            event->ignore();
+            return true;
+        }
+        return false;
+    }
+
+private:
+    Session* m_Session;
+};
+#endif
+
 void Session::exec()
 {
     // If the connection failed, clean up and abort the connection.
@@ -2005,6 +2051,11 @@ void Session::exec()
 
     // Start rich presence to indicate we're in game
     RichPresenceManager presence(*m_Preferences, m_App.name);
+
+#ifdef Q_OS_DARWIN
+    // Cmd+Q while streaming ends the stream and then quits Moonlight
+    QuitDuringStreamFilter quitFilter(this);
+#endif
 
     // Toggle the stats overlay if requested by the user
     m_OverlayManager.setOverlayState(Overlay::OverlayDebug, m_Preferences->showPerformanceOverlay);

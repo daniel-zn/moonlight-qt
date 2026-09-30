@@ -21,12 +21,188 @@ Flickable {
 
     signal languageChanged()
 
-    boundsBehavior: Flickable.OvershootBounds
+    // macOS: no rubber-band overshoot or sideways drift when scrolling with a trackpad
+    boundsBehavior: NativeChrome.enabled ? Flickable.StopAtBounds : Flickable.OvershootBounds
+    flickableDirection: NativeChrome.enabled ? Flickable.VerticalFlick : Flickable.AutoFlickDirection
+    clip: NativeChrome.enabled
 
-    // Two columns side by side, or stacked in a narrow window (macOS, where the window starts small)
-    property bool twoColumns: !NativeChrome.enabled || width >= 900
+    // Two columns side by side elsewhere. macOS shows one section at a time next to a
+    // sidebar of sections, like System Settings.
+    property bool twoColumns: !NativeChrome.enabled
+    readonly property real sidebarWidth: NativeChrome.enabled ? 210 : 0
 
-    contentWidth: settingsColumn1.width > settingsColumn2.width ? settingsColumn1.width : settingsColumn2.width
+    // Type sizes: the macOS body and secondary sizes there, upstream's elsewhere
+    readonly property real bodyPointSize: NativeChrome.enabled ? 13 : 12
+    readonly property real captionPointSize: NativeChrome.enabled ? 11 : 9
+    readonly property int titleWeight: NativeChrome.enabled ? Font.DemiBold : Font.Normal
+
+    // The section shown on macOS (remembered for the session by main.qml)
+    property string macSection: window.settingsSection
+    onMacSectionChanged: {
+        window.settingsSection = macSection
+        contentY = 0
+    }
+
+    function macSectionVisible(section) {
+        return !NativeChrome.enabled || macSection === section
+    }
+
+    // The macOS sidebar's sections, each with a System Settings-style icon
+    ListModel {
+        id: macSectionModel
+        ListElement { key: "video"; title: qsTr("Video & Display"); symbol: "display"; tint: "#0A84FF" }
+        ListElement { key: "audio"; title: qsTr("Audio & Microphone"); symbol: "speaker.wave.2.fill"; tint: "#FF375F" }
+        ListElement { key: "input"; title: qsTr("Keyboard & Mouse"); symbol: "keyboard.fill"; tint: "#30B0C7" }
+        ListElement { key: "gamepad"; title: qsTr("Game Controllers"); symbol: "gamecontroller.fill"; tint: "#30D158" }
+        ListElement { key: "host"; title: qsTr("Host PC"); symbol: "desktopcomputer"; tint: "#5E5CE6" }
+        ListElement { key: "general"; title: qsTr("General"); symbol: "gearshape.fill"; tint: "#8E8E93" }
+        ListElement { key: "advanced"; title: qsTr("Advanced"); symbol: "wrench.and.screwdriver.fill"; tint: "#636366" }
+    }
+
+    readonly property string macSectionTitle: {
+        for (var i = 0; i < macSectionModel.count; i++) {
+            if (macSectionModel.get(i).key === macSection) {
+                return macSectionModel.get(i).title
+            }
+        }
+        return ""
+    }
+
+    // macOS: Settings needs more room than the compact computer list, so the window
+    // grows while it's open and goes back to its size afterwards, like a Mac
+    // settings window that resizes per pane
+    property real macSavedWidth: 0
+    property real macSavedHeight: 0
+
+    function macEnlargeWindow() {
+        if (!NativeChrome.enabled || window.visibility === Window.FullScreen || window.visibility === Window.Maximized) {
+            return
+        }
+        macSavedWidth = window.width
+        macSavedHeight = window.height
+        var screenWidth = Screen.desktopAvailableWidth
+        var screenHeight = Screen.desktopAvailableHeight
+        var newWidth = Math.min(Math.max(window.width, 760), screenWidth)
+        var newHeight = Math.min(Math.max(window.height, 560), screenHeight)
+        // Grow around the window's center, but stay on screen
+        window.x = Math.max(0, Math.min(window.x - (newWidth - window.width) / 2, screenWidth - newWidth))
+        window.y = Math.max(0, Math.min(window.y, screenHeight - newHeight))
+        window.width = newWidth
+        window.height = newHeight
+    }
+
+    function macRestoreWindow() {
+        if (macSavedWidth > 0 && window.visibility === Window.Windowed) {
+            window.x += (window.width - macSavedWidth) / 2
+            window.width = macSavedWidth
+            window.height = macSavedHeight
+        }
+        macSavedWidth = 0
+    }
+
+    Component.onCompleted: {
+        if (NativeChrome.enabled) {
+            var groups = [basicSettingsGroupBox, audioSettingsGroupBox, hostSettingsGroupBox, uiSettingsGroupBox,
+                          inputSettingsGroupBox, gamepadSettingsGroupBox, advancedSettingsGroupBox]
+            for (var i = 0; i < groups.length; i++) {
+                // The native box is the card; the page title replaces the box's title
+                groups[i].title = ""
+                groups[i].padding = 16
+            }
+            macSidebarLoader.parent = settingsPage
+        }
+    }
+
+    // macOS: the list of sections. It sits on the Flickable itself, not its
+    // content, so it stays put while the section scrolls.
+    Loader {
+        id: macSidebarLoader
+        active: NativeChrome.enabled
+        width: settingsPage.sidebarWidth
+        height: settingsPage.height
+        z: 1
+
+        sourceComponent: Item {
+            // A light wash over the glass, with a hairline edge, like a Mac sidebar
+            Rectangle {
+                anchors.fill: parent
+                color: Qt.rgba(settingsPage.palette.text.r, settingsPage.palette.text.g, settingsPage.palette.text.b, 0.03)
+            }
+            Rectangle {
+                anchors.right: parent.right
+                width: 1
+                height: parent.height
+                color: Qt.rgba(settingsPage.palette.text.r, settingsPage.palette.text.g, settingsPage.palette.text.b, 0.1)
+            }
+
+            ListView {
+                id: macSectionList
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 2
+                interactive: false
+                model: macSectionModel
+                currentIndex: {
+                    for (var i = 0; i < macSectionModel.count; i++) {
+                        if (macSectionModel.get(i).key === settingsPage.macSection) {
+                            return i
+                        }
+                    }
+                    return 0
+                }
+
+                delegate: ItemDelegate {
+                    id: sectionRow
+                    width: macSectionList.width
+                    height: 32
+                    focusPolicy: Qt.NoFocus
+
+                    readonly property bool selected: settingsPage.macSection === model.key
+
+                    background: Rectangle {
+                        radius: 7
+                        color: sectionRow.selected ? sectionRow.palette.highlight
+                             : sectionRow.hovered ? Qt.rgba(sectionRow.palette.text.r, sectionRow.palette.text.g, sectionRow.palette.text.b, 0.07)
+                             : "transparent"
+                    }
+
+                    contentItem: Row {
+                        spacing: 9
+                        leftPadding: 4
+
+                        // White symbol on a colored rounded square, as in System Settings
+                        Rectangle {
+                            width: 22
+                            height: 22
+                            radius: 6
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: model.tint
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 14
+                                height: 14
+                                sourceSize { width: 14; height: 14 }
+                                source: NativeChrome.symbol(model.symbol, "#FFFFFF")
+                            }
+                        }
+
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: model.title
+                            font.pixelSize: 13
+                            color: sectionRow.selected ? "white" : sectionRow.palette.text
+                        }
+                    }
+
+                    onClicked: settingsPage.macSection = model.key
+                }
+            }
+        }
+    }
+
+    contentWidth: NativeChrome.enabled ? width :
+                  (settingsColumn1.width > settingsColumn2.width ? settingsColumn1.width : settingsColumn2.width)
     contentHeight: twoColumns ? (settingsColumn1.height > settingsColumn2.height ? settingsColumn1.height : settingsColumn2.height)
                               : settingsColumn2.y + settingsColumn2.height
 
@@ -81,6 +257,8 @@ Flickable {
     }
 
     StackView.onActivated: {
+        macEnlargeWindow()
+
         // This enables Tab and BackTab based navigation rather than arrow keys.
         // It is required to shift focus between controls on the settings page.
         SdlGamepadKeyNavigation.setUiNavMode(true)
@@ -92,6 +270,7 @@ Flickable {
     }
 
     StackView.onDeactivating: {
+        macRestoreWindow()
         SdlGamepadKeyNavigation.setUiNavMode(false)
         StreamingPreferences.setMicrophoneMonitorActive(false)
 
@@ -107,17 +286,28 @@ Flickable {
     }
 
     Column {
-        padding: 10
+        padding: NativeChrome.enabled ? 20 : 10
+        bottomPadding: NativeChrome.enabled ? 0 : 10
         id: settingsColumn1
-        width: settingsPage.twoColumns ? settingsPage.width / 2 : settingsPage.width
+        x: settingsPage.sidebarWidth
+        width: settingsPage.twoColumns ? settingsPage.width / 2 : settingsPage.width - settingsPage.sidebarWidth
         spacing: 15
+
+        // macOS: the section's name above its settings, as in System Settings
+        Label {
+            visible: NativeChrome.enabled
+            text: settingsPage.macSectionTitle
+            font.pixelSize: 22
+            font.weight: Font.Bold
+        }
 
         GroupBox {
             id: basicSettingsGroupBox
+            visible: settingsPage.macSectionVisible("video")
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: sectionTitle(qsTr("Basic Settings"))
-            font.pointSize: 12
+            font.pointSize: settingsPage.bodyPointSize
 
             Column {
                 anchors.fill: parent
@@ -127,7 +317,8 @@ Flickable {
                     width: parent.width
                     id: resFPStitle
                     text: qsTr("Resolution and FPS")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                 }
 
@@ -135,7 +326,7 @@ Flickable {
                     width: parent.width
                     id: resFPSdesc
                     text: qsTr("Setting values too high for your PC or network connection may cause lag, stuttering, or errors.")
-                    font.pointSize: 9
+                    font.pointSize: settingsPage.captionPointSize
                     wrapMode: Text.Wrap
                 }
 
@@ -683,7 +874,8 @@ Flickable {
                     width: parent.width
                     id: bitrateTitle
                     text: qsTr("Video bitrate:")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                 }
 
@@ -691,7 +883,7 @@ Flickable {
                     width: parent.width
                     id: bitrateDesc
                     text: qsTr("Lower the bitrate on slower connections. Raise the bitrate to increase image quality.")
-                    font.pointSize: 9
+                    font.pointSize: settingsPage.captionPointSize
                     wrapMode: Text.Wrap
                 }
 
@@ -709,7 +901,9 @@ Flickable {
                         to: StreamingPreferences.unlockBitrate ? 500000 : 150000
 
                         snapMode: "SnapOnRelease"
-                        width: Math.min(bitrateDesc.implicitWidth, parent.width - (resetBitrateButton.visible ? resetBitrateButton.width + parent.spacing : 0))
+                        // macOS: the full width of the section, like System Settings sliders
+                        width: NativeChrome.enabled ? parent.width - (resetBitrateButton.visible ? resetBitrateButton.width + parent.spacing : 0)
+                                                    : Math.min(bitrateDesc.implicitWidth, parent.width - (resetBitrateButton.visible ? resetBitrateButton.width + parent.spacing : 0))
 
                         onValueChanged: {
                             bitrateTitle.text = qsTr("Video bitrate: %1 Mbps").arg(value / 1000.0)
@@ -743,7 +937,8 @@ Flickable {
                     width: parent.width
                     id: windowModeTitle
                     text: qsTr("Display mode")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                     visible: SystemProperties.hasDesktopEnvironment
                 }
@@ -784,8 +979,9 @@ Flickable {
 
                     // This is used on initialization and upon retranslation
                     function reinitialize() {
-                        if (!visible) {
-                            // Do nothing if the control won't even be visible
+                        if (!visible && !NativeChrome.enabled) {
+                            // Do nothing if the control won't even be visible. (On macOS it may just be
+                            // in a Settings section that isn't showing yet, so it still needs its value.)
                             return
                         }
 
@@ -833,7 +1029,7 @@ Flickable {
                         id: vsyncCheck
                         hoverEnabled: true
                         text: qsTr("V-Sync")
-                        font.pointSize:  12
+                        font.pointSize: settingsPage.bodyPointSize
                         checked: StreamingPreferences.enableVsync
                         onCheckedChanged: {
                             StreamingPreferences.enableVsync = checked
@@ -849,7 +1045,7 @@ Flickable {
                         id: framePacingCheck
                         hoverEnabled: true
                         text: qsTr("Frame pacing")
-                        font.pointSize:  12
+                        font.pointSize: settingsPage.bodyPointSize
                         enabled: StreamingPreferences.enableVsync
                         checked: StreamingPreferences.enableVsync && StreamingPreferences.framePacing
                         onCheckedChanged: {
@@ -866,7 +1062,7 @@ Flickable {
                     id: enableHdr
                     width: parent.width
                     text: qsTr("Enable HDR")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
 
                     enabled: SystemProperties.supportsHdr
                     checked: enabled && StreamingPreferences.enableHdr
@@ -890,10 +1086,11 @@ Flickable {
         GroupBox {
 
             id: audioSettingsGroupBox
+            visible: settingsPage.macSectionVisible("audio")
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: sectionTitle(qsTr("Audio Settings"))
-            font.pointSize: 12
+            font.pointSize: settingsPage.bodyPointSize
 
             Column {
                 anchors.fill: parent
@@ -903,7 +1100,8 @@ Flickable {
                     width: parent.width
                     id: resAudioTitle
                     text: qsTr("Audio configuration")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                 }
 
@@ -950,7 +1148,7 @@ Flickable {
                     id: audioPcCheck
                     width: parent.width
                     text: qsTr("Mute host PC speakers while streaming")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: !StreamingPreferences.playAudioOnHost
                     onCheckedChanged: {
                         StreamingPreferences.playAudioOnHost = !checked
@@ -966,7 +1164,7 @@ Flickable {
                     id: muteOnFocusLossCheck
                     width: parent.width
                     text: qsTr("Mute audio stream when Moonlight is not the active window")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     visible: SystemProperties.hasDesktopEnvironment
                     checked: StreamingPreferences.muteOnFocusLoss
                     onCheckedChanged: {
@@ -983,7 +1181,7 @@ Flickable {
                     id: enableMicrophoneCheck
                     width: parent.width
                     text: qsTr("Enable microphone streaming")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.enableMicrophone
                     onCheckedChanged: {
                         StreamingPreferences.enableMicrophone = checked
@@ -1052,7 +1250,7 @@ Flickable {
                     visible: Qt.platform.os === "osx"
                     enabled: enableMicrophoneCheck.checked
                     text: qsTr("Noise suppression")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.micNoiseSuppression
                     onCheckedChanged: {
                         StreamingPreferences.micNoiseSuppression = checked
@@ -1072,7 +1270,8 @@ Flickable {
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
                         text: qsTr("Microphone test")
-                        font.pointSize: 12
+                        font.pointSize: settingsPage.bodyPointSize
+                        font.weight: settingsPage.titleWeight
                     }
 
                     Button {
@@ -1115,10 +1314,11 @@ Flickable {
 
         GroupBox {
             id: hostSettingsGroupBox
+            visible: settingsPage.macSectionVisible("host")
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: sectionTitle(qsTr("Host Settings"))
-            font.pointSize: 12
+            font.pointSize: settingsPage.bodyPointSize
 
             Column {
                 anchors.fill: parent
@@ -1128,7 +1328,7 @@ Flickable {
                     id: optimizeGameSettingsCheck
                     width: parent.width
                     text: qsTr("Optimize game settings for streaming")
-                    font.pointSize:  12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.gameOptimizations
                     onCheckedChanged: {
                         StreamingPreferences.gameOptimizations = checked
@@ -1139,7 +1339,7 @@ Flickable {
                     id: quitAppAfter
                     width: parent.width
                     text: qsTr("Quit app on host PC after ending stream")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.quitAppAfter
                     onCheckedChanged: {
                         StreamingPreferences.quitAppAfter = checked
@@ -1155,10 +1355,11 @@ Flickable {
 
         GroupBox {
             id: uiSettingsGroupBox
+            visible: settingsPage.macSectionVisible("general")
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: sectionTitle(qsTr("UI Settings"))
-            font.pointSize: 12
+            font.pointSize: settingsPage.bodyPointSize
 
             Column {
                 anchors.fill: parent
@@ -1168,7 +1369,8 @@ Flickable {
                     width: parent.width
                     id: languageTitle
                     text: qsTr("Language")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                 }
 
@@ -1346,7 +1548,8 @@ Flickable {
                     width: parent.width
                     id: uiDisplayModeTitle
                     text: qsTr("GUI display mode")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                     visible: SystemProperties.hasDesktopEnvironment
                 }
@@ -1354,8 +1557,9 @@ Flickable {
                 AutoResizingComboBox {
                     // ignore setting the index at first, and actually set it when the component is loaded
                     Component.onCompleted: {
-                        if (!visible) {
-                            // Do nothing if the control won't even be visible
+                        if (!visible && !NativeChrome.enabled) {
+                            // Do nothing if the control won't even be visible. (On macOS it may just be
+                            // in a Settings section that isn't showing yet, so it still needs its value.)
                             return
                         }
 
@@ -1400,7 +1604,7 @@ Flickable {
                     id: connectionWarningsCheck
                     width: parent.width
                     text: qsTr("Show connection quality warnings")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.connectionWarnings
                     onCheckedChanged: {
                         StreamingPreferences.connectionWarnings = checked
@@ -1411,7 +1615,7 @@ Flickable {
                     id: configurationWarningsCheck
                     width: parent.width
                     text: qsTr("Show configuration warnings")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.configurationWarnings
                     onCheckedChanged: {
                         StreamingPreferences.configurationWarnings = checked
@@ -1423,7 +1627,7 @@ Flickable {
                     id: discordPresenceCheck
                     width: parent.width
                     text: qsTr("Discord Rich Presence integration")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.richPresence
                     onCheckedChanged: {
                         StreamingPreferences.richPresence = checked
@@ -1439,7 +1643,7 @@ Flickable {
                     id: keepAwakeCheck
                     width: parent.width
                     text: qsTr("Keep the display awake while streaming")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.keepAwake
                     onCheckedChanged: {
                         StreamingPreferences.keepAwake = checked
@@ -1455,20 +1659,23 @@ Flickable {
     }
 
     Column {
-        padding: 10
+        padding: NativeChrome.enabled ? 20 : 10
+        // macOS: below the page title in the first column, one column spacing away
+        topPadding: NativeChrome.enabled ? 15 : 10
         rightPadding: 20
-        x: settingsPage.twoColumns ? settingsColumn1.width : 0
+        x: settingsPage.twoColumns ? settingsColumn1.width : settingsPage.sidebarWidth
         y: settingsPage.twoColumns ? 0 : settingsColumn1.height
         id: settingsColumn2
-        width: settingsPage.twoColumns ? settingsPage.width / 2 : settingsPage.width
+        width: settingsPage.twoColumns ? settingsPage.width / 2 : settingsPage.width - settingsPage.sidebarWidth
         spacing: 15
 
         GroupBox {
             id: inputSettingsGroupBox
+            visible: settingsPage.macSectionVisible("input")
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: sectionTitle(qsTr("Input Settings"))
-            font.pointSize: 12
+            font.pointSize: settingsPage.bodyPointSize
 
             Column {
                 anchors.fill: parent
@@ -1479,7 +1686,7 @@ Flickable {
                     hoverEnabled: true
                     width: parent.width
                     text: qsTr("Optimize mouse for remote desktop instead of games")
-                    font.pointSize:  12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.absoluteMouseMode
                     onCheckedChanged: {
                         StreamingPreferences.absoluteMouseMode = checked
@@ -1501,7 +1708,7 @@ Flickable {
                         id: captureSysKeysCheck
                         hoverEnabled: true
                         text: qsTr("Capture system keyboard shortcuts")
-                        font.pointSize: 12
+                        font.pointSize: settingsPage.bodyPointSize
                         enabled: SystemProperties.hasDesktopEnvironment
                         checked: StreamingPreferences.captureSysKeysMode !== StreamingPreferences.CSK_OFF || !SystemProperties.hasDesktopEnvironment
 
@@ -1515,8 +1722,9 @@ Flickable {
                     AutoResizingComboBox {
                         // ignore setting the index at first, and actually set it when the component is loaded
                         Component.onCompleted: {
-                            if (!visible) {
-                                // Do nothing if the control won't even be visible
+                            if (!visible && !NativeChrome.enabled) {
+                                // Do nothing if the control won't even be visible. (On macOS it may just be
+                                // in a Settings section that isn't showing yet, so it still needs its value.)
                                 return
                             }
 
@@ -1573,7 +1781,7 @@ Flickable {
                     hoverEnabled: true
                     width: parent.width
                     text: qsTr("Use touchscreen as a virtual trackpad")
-                    font.pointSize:  12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: !StreamingPreferences.absoluteTouchMode
                     onCheckedChanged: {
                         StreamingPreferences.absoluteTouchMode = !checked
@@ -1590,7 +1798,7 @@ Flickable {
                     hoverEnabled: true
                     width: parent.width
                     text: qsTr("Swap left and right mouse buttons")
-                    font.pointSize:  12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.swapMouseButtons
                     onCheckedChanged: {
                         StreamingPreferences.swapMouseButtons = checked
@@ -1602,7 +1810,7 @@ Flickable {
                     hoverEnabled: true
                     width: parent.width
                     text: qsTr("Reverse mouse scrolling direction")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.reverseScrollDirection
                     onCheckedChanged: {
                         StreamingPreferences.reverseScrollDirection = checked
@@ -1613,10 +1821,11 @@ Flickable {
 
         GroupBox {
             id: gamepadSettingsGroupBox
+            visible: settingsPage.macSectionVisible("gamepad")
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: sectionTitle(qsTr("Gamepad Settings"))
-            font.pointSize: 12
+            font.pointSize: settingsPage.bodyPointSize
 
             Column {
                 anchors.fill: parent
@@ -1626,7 +1835,7 @@ Flickable {
                     id: swapFaceButtonsCheck
                     width: parent.width
                     text: qsTr("Swap A/B and X/Y gamepad buttons")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.swapFaceButtons
                     onCheckedChanged: {
                         StreamingPreferences.swapFaceButtons = checked
@@ -1642,7 +1851,7 @@ Flickable {
                     id: singleControllerCheck
                     width: parent.width
                     text: qsTr("Force gamepad #1 always connected")
-                    font.pointSize:  12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: !StreamingPreferences.multiController
                     onCheckedChanged: {
                         StreamingPreferences.multiController = !checked
@@ -1660,7 +1869,7 @@ Flickable {
                     hoverEnabled: true
                     width: parent.width
                     text: qsTr("Enable mouse control with gamepads by holding the 'Start' button")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.gamepadMouse
                     onCheckedChanged: {
                         StreamingPreferences.gamepadMouse = checked
@@ -1671,7 +1880,7 @@ Flickable {
                     id: backgroundGamepadCheck
                     width: parent.width
                     text: qsTr("Process gamepad input when Moonlight is in the background")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     visible: SystemProperties.hasDesktopEnvironment
                     checked: StreamingPreferences.backgroundGamepad
                     onCheckedChanged: {
@@ -1688,10 +1897,11 @@ Flickable {
 
         GroupBox {
             id: advancedSettingsGroupBox
+            visible: settingsPage.macSectionVisible("advanced")
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: sectionTitle(qsTr("Advanced Settings"))
-            font.pointSize: 12
+            font.pointSize: settingsPage.bodyPointSize
 
             Column {
                 anchors.fill: parent
@@ -1701,7 +1911,8 @@ Flickable {
                     width: parent.width
                     id: resVDSTitle
                     text: qsTr("Video decoder")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                 }
 
@@ -1749,7 +1960,8 @@ Flickable {
                     width: parent.width
                     id: resVCCTitle
                     text: qsTr("Video codec")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                 }
 
@@ -1806,7 +2018,8 @@ Flickable {
                     width: parent.width
                     id: rendererTitle
                     text: qsTr("Renderer")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
+                    font.weight: settingsPage.titleWeight
                     wrapMode: Text.Wrap
                     visible: SystemProperties.isDarwin
                 }
@@ -1862,7 +2075,7 @@ Flickable {
                     id: enableYUV444
                     width: parent.width
                     text: qsTr("Enable YUV 4:4:4")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
 
                     checked: StreamingPreferences.enableYUV444
                     onCheckedChanged: {
@@ -1892,7 +2105,7 @@ Flickable {
                     id: unlockBitrate
                     width: parent.width
                     text: qsTr("Unlock bitrate limit (Experimental)")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
 
                     checked: StreamingPreferences.unlockBitrate
                     onCheckedChanged: {
@@ -1911,7 +2124,7 @@ Flickable {
                     id: enableMdns
                     width: parent.width
                     text: qsTr("Automatically find PCs on the local network (Recommended)")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.enableMdns
                     onCheckedChanged: {
                         // This is called on init, so only do the work if we've
@@ -1932,7 +2145,7 @@ Flickable {
                     id: detectNetworkBlocking
                     width: parent.width
                     text: qsTr("Automatically detect blocked connections (Recommended)")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.detectNetworkBlocking
                     onCheckedChanged: {
                         StreamingPreferences.detectNetworkBlocking = checked
@@ -1943,7 +2156,7 @@ Flickable {
                     id: showPerformanceOverlay
                     width: parent.width
                     text: qsTr("Show performance stats while streaming")
-                    font.pointSize: 12
+                    font.pointSize: settingsPage.bodyPointSize
                     checked: StreamingPreferences.showPerformanceOverlay
                     onCheckedChanged: {
                         StreamingPreferences.showPerformanceOverlay = checked

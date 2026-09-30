@@ -25,6 +25,9 @@ ApplicationWindow {
     // (the QML one, or the native one's items on macOS).
     property bool chromeHidden: false
 
+    // The Settings section shown on macOS, kept while the app runs
+    property string settingsSection: "video"
+
     // How many NavigableDialogs are open (the macOS menu bar disables itself meanwhile)
     property int openDialogs: 0
 

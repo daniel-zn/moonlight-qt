@@ -9,8 +9,8 @@ import NativeChrome 1.0
 ComboBox {
     property int textWidth
     // The native macOS style draws its own arrow and has no indicator item, so
-    // leave room for it instead
-    property int desiredWidth : leftPadding + textWidth + (indicator ? indicator.width : 32) + rightPadding
+    // leave room for it instead (its padding also runs wider than reported)
+    property int desiredWidth : leftPadding + textWidth + (indicator ? indicator.width : 32) + rightPadding + (NativeChrome.enabled ? 16 : 0)
     property int maximumWidth : parent.width
 
     implicitWidth: desiredWidth < maximumWidth ? desiredWidth : maximumWidth
