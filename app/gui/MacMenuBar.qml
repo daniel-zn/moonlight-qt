@@ -91,7 +91,10 @@ MenuBar {
             onTriggered: menuBar.game.launchOrResumeSelectedApp(true)
         }
         Action {
-            text: qsTr("Quit Game…")
+            // Not "Quit…": Qt turns any menu bar item starting with Quit (or Exit, About,
+            // Preferences, Settings…) into that app-menu command, which disabled Quit
+            // Moonlight and pointed Cmd+Q at the game
+            text: qsTr("End Game on PC…")
             enabled: menuBar.game !== null && menuBar.game.appRunning && !menuBar.busy
             onTriggered: menuBar.game.doQuitGame()
         }
@@ -133,7 +136,7 @@ MenuBar {
         }
         MenuSeparator {}
         Action {
-            // Moved into the app menu by macOS, as "Settings…"
+            // Qt moves this into the app menu (where it shows as its standard Settings item)
             text: qsTr("Settings…")
             shortcut: StandardKey.Preferences
             enabled: !menuBar.busy
