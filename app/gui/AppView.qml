@@ -81,17 +81,16 @@ CenteredGridView {
         height: NativeChrome.enabled ? 60 : 287
         grid: appGrid
 
-        // macOS: the art itself is the tile (rounded, shadowed, lifts on hover),
-        // with a focus ring for keyboard and gamepad selection
+        // macOS: the row (MacAppRow) draws its own hover and selection, so the
+        // delegate's background is empty
         Component.onCompleted: {
             if (NativeChrome.enabled) {
-                background = macFocusRingComponent.createObject(appTile)
+                background = macEmptyBackgroundComponent.createObject(appTile)
             }
         }
 
         Component {
-            id: macFocusRingComponent
-            // The row (MacAppRow) draws its own hover and selection
+            id: macEmptyBackgroundComponent
             Item {}
         }
 

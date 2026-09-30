@@ -23,14 +23,15 @@ What it adds on top of upstream Moonlight:
   `Microphone (Steam Streaming Microphone)` on the PC for games and voice chat.
   - Audio goes as 20 ms Opus frames over UDP, encrypted and authenticated with AES-GCM under the session key.
     The host advertises support with `a=x-apollo-mic:2`, so normal streaming to any other host is unaffected.
-  - Settings > Audio Settings: **Enable microphone streaming**, the input device, **Noise suppression**
-    (macOS: RNNoise plus a gate that mutes between words), and **Test microphone** with a level meter.
+  - Settings > Audio Settings (Audio & Microphone on macOS): **Enable microphone streaming**, the input device, **Noise suppression**
+    (macOS only: RNNoise plus a gate that mutes between words), and **Test microphone** with a level meter.
   - On macOS, turning the microphone on asks for microphone permission once.
-- **Native macOS look** (macOS only; Windows and Linux keep upstream's Material look):
+- **Native macOS look** (macOS only; Windows and Linux keep upstream's Material look, apart from tooltips now
+  wrapping at 400 px as upstream intended):
   - A native toolbar with SF Symbols in the title bar, drawn on Liquid Glass on macOS 26 and later.
   - A translucent glass window and native macOS controls that follow light/dark mode and the accent color.
   - A compact window with lists instead of tiles: PCs with their status, and games with a small box art
-    thumbnail and Resume/Quit on a running game. Settings stack into one column when the window is narrow.
+    thumbnail and Resume/Quit on a running game.
   - Lists work like Finder: click selects, double-click (or Return) opens. Double-clicking a PC opens its games,
     pairs it, or, if it's asleep, sends Wake-on-LAN and shows "Waking up…". Double-clicking a game launches or
     resumes it.

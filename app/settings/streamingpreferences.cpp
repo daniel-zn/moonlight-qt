@@ -80,13 +80,14 @@ StreamingPreferences::StreamingPreferences(QQmlEngine *qmlEngine)
     , m_MicrophoneMonitorSpec({})
     , m_MicrophoneMonitorTimer(new QTimer(this))
     , m_PendingMicrophonePeak(0)
-    , m_MicrophoneMonitorLevel(0.0)
-    , m_MicrophoneMonitorActive(false)
-    , m_MicrophonePermissionRequestPending(false)
     , m_MicrophoneCallbackCount(0)
     , m_MicrophoneSignalEverSeen(false)
     , m_MicrophoneMonitorStartMs(0)
+    , m_MicrophoneMonitorLevel(0.0)
+    , m_MicrophoneMonitorActive(false)
+    , m_MicrophonePermissionRequestPending(false)
     , m_MicrophoneMonitorSignalDetected(false)
+    , m_MicrophoneMonitorHoldsAudio(false)
 {
     m_MicrophoneMonitorStatus = tr("Press Test microphone and speak to check your input.");
     m_MicrophoneMonitorTimer->setInterval(50);
@@ -559,9 +560,22 @@ bool StreamingPreferences::startMicrophoneMonitor()
         return false;
     }
 
-    if (SDL_WasInit(SDL_INIT_AUDIO) == 0 && SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
-        setMicrophoneMonitorStatus(tr("Microphone preview unavailable: SDL audio init failed"));
+    // A hard failure ends the test, so the button doesn't keep saying it's running
+    auto failTest = [this](const QString& status) {
+        stopMicrophoneMonitor(status);
+        if (m_MicrophoneMonitorActive) {
+            m_MicrophoneMonitorActive = false;
+            emit microphoneTestRunningChanged();
+        }
         return false;
+    };
+
+    // Hold a reference on SDL audio only while the test runs (stopMicrophoneMonitor drops it)
+    if (!m_MicrophoneMonitorHoldsAudio) {
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+            return failTest(tr("Microphone preview unavailable: SDL audio init failed"));
+        }
+        m_MicrophoneMonitorHoldsAudio = true;
     }
 
     SDL_AudioSpec desired = {};
@@ -586,15 +600,13 @@ bool StreamingPreferences::startMicrophoneMonitor()
 
     if (m_MicrophoneMonitorDeviceId == 0) {
         qWarning() << "Microphone test couldn't open" << microphoneDevice << ":" << SDL_GetError();
-        setMicrophoneMonitorStatus(tr("Couldn't open the microphone: %1").arg(QString::fromUtf8(SDL_GetError())));
-        return false;
+        return failTest(tr("Couldn't open the microphone: %1").arg(QString::fromUtf8(SDL_GetError())));
     }
 
     if (m_MicrophoneMonitorSpec.freq != desired.freq ||
             m_MicrophoneMonitorSpec.channels != desired.channels ||
             m_MicrophoneMonitorSpec.format != desired.format) {
-        stopMicrophoneMonitor(tr("Microphone preview unavailable: the input device does not support 48 kHz mono 16-bit capture"));
-        return false;
+        return failTest(tr("Microphone preview unavailable: the input device does not support 48 kHz mono 16-bit capture"));
     }
 
     m_PendingMicrophonePeak.store(0, std::memory_order_release);
@@ -646,6 +658,11 @@ void StreamingPreferences::stopMicrophoneMonitor(const QString& status)
         m_MicrophoneMonitorDeviceId = 0;
     }
     m_MicrophoneMonitorFilter.reset();
+
+    if (m_MicrophoneMonitorHoldsAudio) {
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        m_MicrophoneMonitorHoldsAudio = false;
+    }
 
     m_PendingMicrophonePeak.store(0, std::memory_order_release);
     if (m_MicrophoneMonitorLevel != 0.0) {

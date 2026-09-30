@@ -1,17 +1,13 @@
 import QtQuick
 import QtQuick.Effects
 
-// Box art for the macOS game grid: rounded corners, a soft shadow, and a lift
-// on hover. Only loaded on macOS (Qt 6), so QtQuick.Effects is fine here.
+// Box art thumbnail for the macOS game list: rounded corners and a soft shadow.
+// Only loaded on macOS (Qt 6), so QtQuick.Effects is fine here.
 Item {
     id: root
 
     property url source
-    property bool lifted: false
     property real radius: 14
-
-    scale: lifted ? 1.04 : 1.0
-    Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
     // Shadow cast by a rounded card behind the art
     Rectangle {
@@ -28,10 +24,8 @@ Item {
         shadowEnabled: true
         shadowColor: "black"
         shadowBlur: 0.8
-        shadowOpacity: root.lifted ? 0.5 : 0.3
-        shadowVerticalOffset: root.lifted ? 10 : 5
-        Behavior on shadowOpacity { NumberAnimation { duration: 160 } }
-        Behavior on shadowVerticalOffset { NumberAnimation { duration: 160 } }
+        shadowOpacity: 0.3
+        shadowVerticalOffset: 5
     }
 
     Image {

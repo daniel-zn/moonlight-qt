@@ -285,7 +285,6 @@ private:
     int m_AudioSampleCount;
     Uint32 m_DropAudioEndTime;
     MicrophoneCapture* m_MicrophoneCapture;
-    bool m_MicrophoneEnabled;
 
     Overlay::OverlayManager m_OverlayManager;
 

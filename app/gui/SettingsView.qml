@@ -80,13 +80,17 @@ Flickable {
         }
         macSavedWidth = window.width
         macSavedHeight = window.height
-        var screenWidth = Screen.desktopAvailableWidth
-        var screenHeight = Screen.desktopAvailableHeight
+        // Stay on the window's own display (displays left of or above the main one
+        // have negative coordinates); the top 25 points are the menu bar
+        var left = Screen.virtualX
+        var top = Screen.virtualY + 25
+        var screenWidth = Screen.width
+        var screenHeight = Screen.height - 25
         var newWidth = Math.min(Math.max(window.width, 760), screenWidth)
         var newHeight = Math.min(Math.max(window.height, 560), screenHeight)
-        // Grow around the window's center, but stay on screen
-        window.x = Math.max(0, Math.min(window.x - (newWidth - window.width) / 2, screenWidth - newWidth))
-        window.y = Math.max(0, Math.min(window.y, screenHeight - newHeight))
+        // Grow around the window's center
+        window.x = Math.max(left, Math.min(window.x - (newWidth - window.width) / 2, left + screenWidth - newWidth))
+        window.y = Math.max(top, Math.min(window.y, top + screenHeight - newHeight))
         window.width = newWidth
         window.height = newHeight
     }

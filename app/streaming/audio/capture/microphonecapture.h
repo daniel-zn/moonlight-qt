@@ -30,8 +30,6 @@ public:
     void setEnabled(bool enabled);
     // Call before initialize()
     void setNoiseSuppression(bool enabled);
-    bool isEnabled() const;
-    bool isStreaming() const;
 
 private:
     static void audioCallback(void* userdata, Uint8* stream, int len);

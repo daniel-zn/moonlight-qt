@@ -309,4 +309,5 @@ private:
     bool m_MicrophonePermissionRequestPending;
     bool m_MicrophoneMonitorSignalDetected;
     QString m_MicrophoneMonitorStatus;
+    bool m_MicrophoneMonitorHoldsAudio;  // The test holds a reference on SDL's audio subsystem
 };

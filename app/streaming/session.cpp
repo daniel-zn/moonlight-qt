@@ -35,6 +35,7 @@
 #include <QtEndian>
 #include <QCoreApplication>
 #include <QEvent>
+#include <memory>
 #include <QThreadPool>
 #include <QSvgRenderer>
 #include <QPainter>
@@ -587,8 +588,7 @@ Session::Session(NvComputer* computer, NvApp& app, StreamingPreferences *prefere
       m_AudioRenderer(nullptr),
       m_AudioSampleCount(0),
       m_DropAudioEndTime(0),
-      m_MicrophoneCapture(nullptr),
-      m_MicrophoneEnabled(false)
+      m_MicrophoneCapture(nullptr)
 {
 }
 
@@ -1795,11 +1795,8 @@ bool Session::initializeMicrophoneCapture()
     if (!m_MicrophoneCapture->initialize(microphoneDeviceName)) {
         delete m_MicrophoneCapture;
         m_MicrophoneCapture = nullptr;
-        m_MicrophoneEnabled = false;
         return false;
     }
-
-    m_MicrophoneEnabled = true;
     return true;
 }
 
@@ -1810,15 +1807,14 @@ void Session::destroyMicrophoneCapture()
         delete m_MicrophoneCapture;
         m_MicrophoneCapture = nullptr;
     }
-
-    m_MicrophoneEnabled = false;
 }
 
 #ifdef Q_OS_DARWIN
 // While streaming, the SDL loop below owns the main thread, so a quit request from
-// macOS (Cmd+Q, Dock > Quit, logging out) would sit in Qt's queue until the stream
-// ended on its own. Catch it and end the stream instead; the cleanup task then
-// quits the app (the same path as the quit-and-exit key combo).
+// macOS (Cmd+Q, Dock > Quit) would sit in Qt's queue until the stream ended on its
+// own. Catch it and end the stream instead; the cleanup task then quits the app (the
+// same path as the quit-and-exit key combo). Declining the immediate quit means a
+// logout or shutdown started mid-stream is cancelled once, while Moonlight exits.
 class QuitDuringStreamFilter : public QObject
 {
 public:
@@ -2054,7 +2050,7 @@ void Session::exec()
 
 #ifdef Q_OS_DARWIN
     // Cmd+Q while streaming ends the stream and then quits Moonlight
-    QuitDuringStreamFilter quitFilter(this);
+    std::unique_ptr<QuitDuringStreamFilter> quitFilter(new QuitDuringStreamFilter(this));
 #endif
 
     // Toggle the stats overlay if requested by the user
@@ -2411,6 +2407,11 @@ void Session::exec()
     }
 
 DispatchDeferredCleanup:
+#ifdef Q_OS_DARWIN
+    // The stream is ending; from here on a quit is Moonlight's own (or a normal one)
+    quitFilter.reset();
+#endif
+
     // Switch back to synchronous logging mode
     StreamUtils::exitAsyncLoggingMode();
 

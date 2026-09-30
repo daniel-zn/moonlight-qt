@@ -11,6 +11,7 @@ Dialog {
     // macOS: a rounded sheet-like panel over a dimmed window, as in system alerts
     Component.onCompleted: {
         if (NativeChrome.enabled) {
+            Overlay.modal = macModalDim
             padding = 20
             topPadding = 18
             var oldBackground = background
@@ -57,8 +58,12 @@ Dialog {
         }
     }
 
-    Overlay.modal: Rectangle {
-        color: NativeChrome.enabled ? Qt.rgba(0, 0, 0, 0.35) : Qt.rgba(0, 0, 0, 0.5)
+    // macOS: a lighter dim, as behind system sheets. Other platforms keep their style's.
+    Component {
+        id: macModalDim
+        Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.35)
+        }
     }
 
     // The macOS menu bar stays usable behind modal dialogs, so it counts open ones.

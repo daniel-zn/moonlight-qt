@@ -192,16 +192,6 @@ void MicrophoneCapture::setEnabled(bool enabled)
     }
 }
 
-bool MicrophoneCapture::isEnabled() const
-{
-    return m_Enabled;
-}
-
-bool MicrophoneCapture::isStreaming() const
-{
-    return m_Streaming.load(std::memory_order_acquire);
-}
-
 void MicrophoneCapture::audioCallback(void* userdata, Uint8* stream, int len)
 {
     auto* capture = static_cast<MicrophoneCapture*>(userdata);
@@ -234,9 +224,10 @@ void MicrophoneCapture::handleAudioData(const Uint8* stream, int len)
 void MicrophoneCapture::encoderLoop()
 {
     std::vector<opus_int16> frame(kFrameSize);
-    const auto frameDuration = std::chrono::milliseconds((kFrameSize * 1000) / kSampleRate);
-    auto nextSendDeadline = std::chrono::steady_clock::now();
-    bool pacingActive = false;
+
+    // Frames go out as soon as they're captured. Pacing them to one per 20 ms would keep any
+    // backlog (after a stall, or from a mic clock running slightly fast) as permanent delay;
+    // the host's jitter buffer smooths the bursts instead.
 
     for (;;) {
         {
@@ -251,29 +242,12 @@ void MicrophoneCapture::encoderLoop()
             }
 
             if (!m_Streaming.load(std::memory_order_acquire) || m_SampleBuffer.size() < (size_t)kFrameSize) {
-                pacingActive = false;
                 continue;
             }
 
             std::copy_n(m_SampleBuffer.begin(), kFrameSize, frame.begin());
             m_SampleBuffer.erase(m_SampleBuffer.begin(), m_SampleBuffer.begin() + kFrameSize);
         }
-
-        const auto now = std::chrono::steady_clock::now();
-        if (!pacingActive) {
-            nextSendDeadline = now;
-            pacingActive = true;
-        }
-        else if (now > nextSendDeadline + (frameDuration * 2)) {
-            // Re-sync the pacing clock after a long capture gap to avoid compounding stale latency.
-            nextSendDeadline = now;
-        }
-
-        if (nextSendDeadline > now) {
-            std::this_thread::sleep_until(nextSendDeadline);
-        }
-
-        nextSendDeadline += frameDuration;
 
         if (m_NoiseFilter) {
             m_NoiseFilter->process(frame.data(), kFrameSize);
