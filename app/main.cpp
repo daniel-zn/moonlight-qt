@@ -50,6 +50,9 @@
 #include "gui/computermodel.h"
 #include "gui/appmodel.h"
 #include "gui/nativechrome.h"
+#ifdef MOONLIGHT_UI_PROBE
+#include "gui/uiprobe.h"
+#endif
 #include "backend/autoupdatechecker.h"
 #include "backend/computermanager.h"
 #include "backend/systemproperties.h"
@@ -1050,6 +1053,11 @@ int main(int argc, char *argv[])
         engine.load(QUrl(QStringLiteral("qrc:/gui/main.qml")));
         if (engine.rootObjects().isEmpty())
             return -1;
+
+#ifdef MOONLIGHT_UI_PROBE
+        // UI self-test script (test builds only), when MOONLIGHT_UI_PROBE asks for one
+        UiProbe::startIfRequested(&engine);
+#endif
     }
 
     int err = app.exec();

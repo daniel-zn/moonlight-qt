@@ -89,7 +89,9 @@ Flickable {
         var newWidth = Math.min(Math.max(window.width, 760), screenWidth)
         var newHeight = Math.min(Math.max(window.height, 560), screenHeight)
         // Grow around the window's center, animated like a native window. main.qml has
-        // faded the page out first, so nothing re-lays out on screen.
+        // faded the page out first, so nothing re-lays out on screen. The enlarged size
+        // isn't the one to reopen at, so the window stops remembering its frame meanwhile.
+        NativeChrome.setRememberWindowFrame(window, false)
         NativeChrome.setWindowGeometry(window,
                                        Math.max(left, Math.min(window.x - (newWidth - window.width) / 2, left + screenWidth - newWidth)),
                                        Math.max(top, Math.min(window.y, top + screenHeight - newHeight)),
@@ -97,9 +99,13 @@ Flickable {
     }
 
     function macRestoreWindow() {
-        if (macSavedWidth > 0 && window.visibility === Window.Windowed) {
-            NativeChrome.setWindowGeometry(window, window.x + (window.width - macSavedWidth) / 2, window.y,
-                                           macSavedWidth, macSavedHeight, true)
+        if (macSavedWidth > 0) {
+            if (window.visibility === Window.Windowed) {
+                NativeChrome.setWindowGeometry(window, window.x + (window.width - macSavedWidth) / 2, window.y,
+                                               macSavedWidth, macSavedHeight, true)
+            }
+            // Even if the window was maximized meanwhile, keep remembering its frame
+            NativeChrome.setRememberWindowFrame(window, true)
         }
         macSavedWidth = 0
     }

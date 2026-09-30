@@ -1,5 +1,8 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
+
+import NativeChrome 1.0
 
 // The macOS menu bar (Qt 6.8+ draws a QML MenuBar natively there). Every action
 // in the window is also here, with its keyboard shortcut, so nothing is hidden
@@ -142,7 +145,31 @@ MenuBar {
     }
 
     Menu {
+        title: qsTr("Window")
+
+        // Not while streaming: the window is hidden then, and showing it minimized
+        // would bring it back mid-stream
+        Action {
+            text: qsTr("Minimize")
+            shortcut: "Ctrl+M"
+            enabled: !window.chromeHidden
+            onTriggered: window.showMinimized()
+        }
+        Action {
+            text: qsTr("Zoom")
+            enabled: !window.chromeHidden && window.visibility !== Window.FullScreen
+            onTriggered: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized()
+        }
+    }
+
+    Menu {
         title: qsTr("Help")
+
+        Action {
+            // Qt moves this into the app menu, where About belongs
+            text: qsTr("About Moonlight")
+            onTriggered: NativeChrome.showAboutPanel()
+        }
 
         Action {
             text: qsTr("Moonlight Setup Guide")

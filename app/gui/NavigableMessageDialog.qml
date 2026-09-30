@@ -39,6 +39,9 @@ NavigableDialog {
         if (src.indexOf("check_circle") >= 0) {
             return NativeChrome.symbol("checkmark.circle.fill", "#30D158")
         }
+        else if (src.indexOf("lock") >= 0) {
+            return NativeChrome.symbol("lock.fill", "#0A84FF")
+        }
         else if (src.indexOf("help") >= 0) {
             return NativeChrome.symbol("questionmark.circle.fill", "#0A84FF")
         }

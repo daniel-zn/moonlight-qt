@@ -86,10 +86,54 @@ CenteredGridView {
         return model
     }
 
+    // macOS: a centered empty state that wraps within the compact window
+    Column {
+        anchors.centerIn: parent
+        width: Math.min(pcGrid.width - 48, 300)
+        spacing: 8
+        visible: NativeChrome.enabled && pcGrid.count === 0
+
+        Image {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 44; height: 44
+            sourceSize { width: 44; height: 44 }
+            source: NativeChrome.enabled ? NativeChrome.symbol("desktopcomputer", window.palette.text) : ""
+            opacity: 0.45
+        }
+
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 6
+
+            ActivitySpinner {
+                width: 14; height: 14
+                anchors.verticalCenter: parent.verticalCenter
+                visible: StreamingPreferences.enableMdns
+                running: visible && pcGrid.count === 0
+            }
+            Label {
+                text: StreamingPreferences.enableMdns ? qsTr("Looking for computers…") : qsTr("No computers")
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+            }
+        }
+
+        Label {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            opacity: 0.65
+            font.pixelSize: 11
+            text: StreamingPreferences.enableMdns ?
+                      qsTr("Moonlight finds PCs running Apollo or Sunshine on your network. You can also add one with the + button.") :
+                      qsTr("Automatic PC discovery is off. Add your PC with the + button.")
+        }
+    }
+
     Row {
         anchors.centerIn: parent
         spacing: 5
-        visible: pcGrid.count === 0
+        visible: !NativeChrome.enabled && pcGrid.count === 0
 
         ActivitySpinner {
             id: searchSpinner
@@ -102,7 +146,7 @@ CenteredGridView {
             elide: Label.ElideRight
             text: StreamingPreferences.enableMdns ? qsTr("Searching for compatible hosts on your local network...")
                                                   : qsTr("Automatic PC discovery is disabled. Add your PC manually.")
-            font.pointSize: NativeChrome.enabled ? 13 : 20
+            font.pointSize: 20
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
         }
@@ -525,8 +569,14 @@ CenteredGridView {
 
         // don't allow edits to the rest of the window while open
         property string pin : "0000"
-        text:qsTr("Please enter %1 on your host PC. This dialog will close when pairing is completed.").arg(pin)+"\n\n"+
-             qsTr("If your host PC is running Sunshine, navigate to the Sunshine web UI to enter the PIN.")
+        // macOS: the PIN large on its own line, so it's easy to read while typing it
+        text: NativeChrome.enabled ?
+                  // (Qt Quick labels take StyledText, a small HTML subset without CSS)
+                  qsTr("Enter this PIN on your host PC:") + "<br><font size=\"6\"><b>" + pin + "</b></font><br>" +
+                  qsTr("With Apollo or Sunshine, enter it on the PIN page of the host's web UI. This closes by itself once you're paired.") :
+                  qsTr("Please enter %1 on your host PC. This dialog will close when pairing is completed.").arg(pin)+"\n\n"+
+                  qsTr("If your host PC is running Sunshine, navigate to the Sunshine web UI to enter the PIN.")
+        imageSrc: NativeChrome.enabled ? "qrc:/res/baseline-lock-24px.svg" : ""
         standardButtons: Dialog.Cancel
         onRejected: {
             // FIXME: We should interrupt pairing here

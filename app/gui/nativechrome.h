@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 
 class QQuickWindow;
 class QQmlEngine;
@@ -46,6 +47,17 @@ public:
     // Moves and resizes the window (its content area, in Qt's coordinates). On macOS it can
     // animate like a native window; the call returns when the animation has finished.
     Q_INVOKABLE void setWindowGeometry(QQuickWindow* window, qreal x, qreal y, qreal width, qreal height, bool animate);
+
+    // Remembers the window's size and position between launches (macOS autosave; it's on
+    // from attach()). Settings turns it off while it has the window enlarged; turning it
+    // back on saves the window's current frame.
+    Q_INVOKABLE void setRememberWindowFrame(QQuickWindow* window, bool remember);
+
+    // The standard About panel (name, icon, version from Info.plist)
+    Q_INVOKABLE void showAboutPanel();
+
+    // The application menu's items as "title|enabled" strings, for UI self-tests
+    Q_INVOKABLE QStringList appMenuItems() const;
 
     // Image URL for an SF Symbol drawn in the given color, for Image.source
     Q_INVOKABLE QString symbol(const QString& name, const QColor& color) const;

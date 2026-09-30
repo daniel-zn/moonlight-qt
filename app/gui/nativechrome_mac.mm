@@ -1,6 +1,8 @@
 #include "nativechrome.h"
 
 #include <QColor>
+#include <QCoreApplication>
+#include <QTranslator>
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQuickImageProvider>
@@ -15,6 +17,9 @@ static NSToolbarItemIdentifier const kUpdateItem = @"com.moonlight-stream.update
 static NSToolbarItemIdentifier const kAddPcItem = @"com.moonlight-stream.addpc";
 static NSToolbarItemIdentifier const kHelpItem = @"com.moonlight-stream.help";
 static NSToolbarItemIdentifier const kSettingsItem = @"com.moonlight-stream.settings";
+
+// The main window's saved size and position (NSWindow frame autosave)
+static NSString* const kWindowFrameName = @"MoonlightMainWindow";
 
 @interface MLToolbarController : NSObject <NSToolbarDelegate>
 {
@@ -193,8 +198,34 @@ NativeChrome::~NativeChrome()
     [(MLToolbarController*)m_Native release];
 }
 
+// Qt's application menu still says "Preferences..."; macOS 13 and later say "Settings…".
+// Qt re-reads the label through this translation whenever it syncs the menu, so answering
+// it here keeps the new label (a language translator installed later still takes over).
+class AppMenuTranslator : public QTranslator
+{
+public:
+    using QTranslator::QTranslator;
+
+    QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation)
+        Q_UNUSED(n)
+        if (qstrcmp(context, "MAC_APPLICATION_MENU") == 0 && qstrcmp(sourceText, "Preferences...") == 0) {
+            return QStringLiteral("Settings…");
+        }
+        return QString();
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
 void NativeChrome::registerTypes(QQmlEngine* engine)
 {
+    QCoreApplication::installTranslator(new AppMenuTranslator(QCoreApplication::instance()));
+
     engine->addImageProvider("sfsymbol", new SfSymbolImageProvider());
     qmlRegisterSingletonType<NativeChrome>("NativeChrome", 1, 0, "NativeChrome",
                                            [](QQmlEngine*, QJSEngine*) -> QObject* {
@@ -218,6 +249,12 @@ void NativeChrome::attach(QQuickWindow* window)
     NSWindow* nsWindow = qtView.window;
     if (nsWindow == nil) {
         return;
+    }
+
+    // Reopen where the window was last time (setting the name restores the saved frame),
+    // unless the user asked for a maximized or full-screen window
+    if (window->visibility() == QWindow::Windowed) {
+        [nsWindow setFrameAutosaveName:kWindowFrameName];
     }
 
     // Toolbar in the title bar, with the title and traffic lights, as in Finder and Safari.
@@ -284,6 +321,62 @@ void NativeChrome::setWindowGeometry(QQuickWindow* window, qreal x, qreal y, qre
     frame.origin.y = top - frame.size.height;
 
     [nsWindow setFrame:frame display:YES animate:YES];
+}
+
+static NSWindow* nativeWindow(QQuickWindow* window)
+{
+    if (window == nullptr || QGuiApplication::platformName() != QLatin1String("cocoa")) {
+        return nil;
+    }
+    return reinterpret_cast<NSView*>(window->winId()).window;
+}
+
+void NativeChrome::setRememberWindowFrame(QQuickWindow* window, bool remember)
+{
+    NSWindow* nsWindow = nativeWindow(window);
+    if (nsWindow == nil) {
+        return;
+    }
+
+    if (remember) {
+        // Keep the window where it is now (setting the name alone would jump back to
+        // the frame saved before it was turned off)
+        [nsWindow saveFrameUsingName:kWindowFrameName];
+        [nsWindow setFrameAutosaveName:kWindowFrameName];
+    }
+    else {
+        [nsWindow setFrameAutosaveName:@""];
+    }
+}
+
+void NativeChrome::showAboutPanel()
+{
+    [NSApp orderFrontStandardAboutPanel:nil];
+    if (@available(macOS 14.0, *)) {
+        [NSApp activate];
+    }
+    else {
+        [NSApp activateIgnoringOtherApps:YES];
+    }
+}
+
+QStringList NativeChrome::appMenuItems() const
+{
+    QStringList items;
+    if (NSApp.mainMenu.numberOfItems == 0) {
+        return items;
+    }
+    NSMenu* appMenu = [NSApp.mainMenu itemAtIndex:0].submenu;
+    [appMenu update];
+    for (NSMenuItem* item in appMenu.itemArray) {
+        if (item.isSeparatorItem || item.isHidden) {
+            continue;
+        }
+        BOOL enabled = item.target != nil && [item.target respondsToSelector:@selector(validateMenuItem:)]
+                           ? [item.target validateMenuItem:item] : item.isEnabled;
+        items.append(QString::fromNSString(item.title) + (enabled ? "|enabled" : "|disabled"));
+    }
+    return items;
 }
 
 QString NativeChrome::symbol(const QString& name, const QColor& color) const

@@ -37,6 +37,19 @@ void NativeChrome::setWindowGeometry(QQuickWindow* window, qreal x, qreal y, qre
     }
 }
 
+void NativeChrome::setRememberWindowFrame(QQuickWindow*, bool)
+{
+}
+
+void NativeChrome::showAboutPanel()
+{
+}
+
+QStringList NativeChrome::appMenuItems() const
+{
+    return QStringList();
+}
+
 QString NativeChrome::symbol(const QString&, const QColor&) const
 {
     return QString();

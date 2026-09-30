@@ -604,3 +604,10 @@ macx {
 
 VERSION = "$$cat(version.txt)"
 DEFINES += VERSION_STR=\\\"$$cat(version.txt)\\\"
+
+# UI self-test hook (gui/uiprobe.*), only in test builds: qmake CONFIG+=ui_probe
+ui_probe {
+    DEFINES += MOONLIGHT_UI_PROBE
+    SOURCES += gui/uiprobe.cpp
+    HEADERS += gui/uiprobe.h
+}

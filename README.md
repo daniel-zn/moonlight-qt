@@ -42,7 +42,12 @@ What it adds on top of upstream Moonlight:
     Keyboard & Mouse, Game Controllers, Host PC, General, Advanced), one section at a time, with macOS type sizes.
     The window grows while Settings is open and returns to its size afterwards.
   - ⌘Q (or Dock ▸ Quit) during a stream ends the stream cleanly and then quits Moonlight.
+  - Mac app conventions: the window reopens where you left it, About Moonlight and Settings… are in the
+    app menu, a Window menu has Minimize (⌘M) and Zoom, and pairing shows the PIN large.
 - **Build changes:**
+  - `qmake -r CONFIG+=ui_probe` builds in a UI self-test hook (`app/gui/uiprobe.*`, off in normal builds): with
+    `MOONLIGHT_UI_PROBE=<script.qml>` Moonlight runs that script, which can drive the UI, save window screenshots
+    and quit, so the macOS UI can be checked without anyone at the screen.
   - `moonlight-common-c` (with the microphone protocol) is included directly instead of as a submodule.
   - macOS: a microphone usage description and audio-input entitlement. DMGs built without a signing identity are
     ad-hoc signed as a whole, so macOS can remember the microphone and Local Network permissions.

@@ -440,14 +440,38 @@ CenteredGridView {
         }
     }
 
+    // macOS: a centered empty state that wraps within the compact window
+    Column {
+        anchors.centerIn: parent
+        width: Math.min(appGrid.width - 48, 300)
+        spacing: 8
+        visible: NativeChrome.enabled && appGrid.count === 0
+
+        Label {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            text: qsTr("No games to show")
+            font.pixelSize: 13
+            font.weight: Font.DemiBold
+        }
+        Label {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            opacity: 0.65
+            font.pixelSize: 11
+            text: qsTr("This PC has no apps, or they're hidden. To see hidden ones, go back, select the PC, and choose Computer ▸ Show All Games, Including Hidden.")
+        }
+    }
+
     Row {
         anchors.centerIn: parent
         spacing: 5
-        visible: appGrid.count === 0
+        visible: !NativeChrome.enabled && appGrid.count === 0
 
         Label {
             text: qsTr("This computer doesn't seem to have any applications or some applications are hidden")
-            font.pointSize: NativeChrome.enabled ? 13 : 20
+            font.pointSize: 20
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
         }
