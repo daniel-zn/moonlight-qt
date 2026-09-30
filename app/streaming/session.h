@@ -98,6 +98,7 @@ class Session : public QObject
     friend class SdlInputHandler;
     friend class DeferredSessionCleanupTask;
     friend class AsyncConnectionStartThread;
+    friend class QuitDuringStreamFilter;
 
 public:
     explicit Session(NvComputer* computer, NvApp& app, StreamingPreferences *preferences = nullptr);
@@ -269,6 +270,7 @@ private:
     int m_FlushingWindowEventsRef;
     QStringList m_LaunchWarnings;
     bool m_ShouldExit;
+    bool m_LeaveHostAppRunning;  // Set by Cmd+Q on macOS: disconnect only, never quit the host's app
 
     bool m_AsyncConnectionSuccess;
     int m_PortTestResults;

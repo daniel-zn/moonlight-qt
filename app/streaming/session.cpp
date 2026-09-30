@@ -582,6 +582,7 @@ Session::Session(NvComputer* computer, NvApp& app, StreamingPreferences *prefere
       m_MouseEmulationRefCount(0),
       m_FlushingWindowEventsRef(0),
       m_ShouldExit(false),
+      m_LeaveHostAppRunning(false),
       m_AsyncConnectionSuccess(false),
       m_PortTestResults(0),
       m_OpusDecoder(nullptr),
@@ -1278,6 +1279,7 @@ private:
         // Only quit the running app if our session terminated gracefully
         bool shouldQuit =
                 !m_Session->m_UnexpectedTermination &&
+                !m_Session->m_LeaveHostAppRunning &&
                 m_Session->m_Preferences->quitAppAfter;
 
         // Notify the UI
@@ -1812,9 +1814,11 @@ void Session::destroyMicrophoneCapture()
 #ifdef Q_OS_DARWIN
 // While streaming, the SDL loop below owns the main thread, so a quit request from
 // macOS (Cmd+Q, Dock > Quit) would sit in Qt's queue until the stream ended on its
-// own. Catch it and end the stream instead; the cleanup task then quits the app (the
-// same path as the quit-and-exit key combo). Declining the immediate quit means a
-// logout or shutdown started mid-stream is cancelled once, while Moonlight exits.
+// own. Catch it and end the stream instead; the cleanup task then quits Moonlight.
+// Quitting Moonlight only disconnects: the game on the host keeps running (and Apollo
+// keeps its virtual display), even with "quit app on host after streaming" on.
+// Declining the immediate quit means a logout or shutdown started mid-stream is
+// cancelled once, while Moonlight exits.
 class QuitDuringStreamFilter : public QObject
 {
 public:
@@ -1835,7 +1839,8 @@ protected:
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
                         "App quit requested while streaming");
 
-            // Respect the "quit app on host after streaming" preference
+            // Quit Moonlight afterwards, but leave the host's app running
+            m_Session->m_LeaveHostAppRunning = true;
             m_Session->setShouldExit(false);
 
             SDL_Event quitEvent;
