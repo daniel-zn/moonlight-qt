@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QQmlEngine>
+#include <QQuickWindow>
 
 // Platforms without native chrome: QML keeps its own toolbar and icons
 
@@ -27,6 +28,13 @@ bool NativeChrome::isEnabled() const
 
 void NativeChrome::attach(QQuickWindow*)
 {
+}
+
+void NativeChrome::setWindowGeometry(QQuickWindow* window, qreal x, qreal y, qreal width, qreal height, bool)
+{
+    if (window != nullptr) {
+        window->setGeometry(qRound(x), qRound(y), qRound(width), qRound(height));
+    }
 }
 
 QString NativeChrome::symbol(const QString&, const QColor&) const

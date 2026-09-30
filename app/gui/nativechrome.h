@@ -43,6 +43,10 @@ public:
     // Installs the toolbar and glass background on the window
     Q_INVOKABLE void attach(QQuickWindow* window);
 
+    // Moves and resizes the window (its content area, in Qt's coordinates). On macOS it can
+    // animate like a native window; the call returns when the animation has finished.
+    Q_INVOKABLE void setWindowGeometry(QQuickWindow* window, qreal x, qreal y, qreal width, qreal height, bool animate);
+
     // Image URL for an SF Symbol drawn in the given color, for Image.source
     Q_INVOKABLE QString symbol(const QString& name, const QColor& color) const;
 

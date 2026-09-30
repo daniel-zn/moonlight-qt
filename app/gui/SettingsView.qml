@@ -88,18 +88,18 @@ Flickable {
         var screenHeight = Screen.height - 25
         var newWidth = Math.min(Math.max(window.width, 760), screenWidth)
         var newHeight = Math.min(Math.max(window.height, 560), screenHeight)
-        // Grow around the window's center
-        window.x = Math.max(left, Math.min(window.x - (newWidth - window.width) / 2, left + screenWidth - newWidth))
-        window.y = Math.max(top, Math.min(window.y, top + screenHeight - newHeight))
-        window.width = newWidth
-        window.height = newHeight
+        // Grow around the window's center, animated like a native window. main.qml has
+        // faded the page out first, so nothing re-lays out on screen.
+        NativeChrome.setWindowGeometry(window,
+                                       Math.max(left, Math.min(window.x - (newWidth - window.width) / 2, left + screenWidth - newWidth)),
+                                       Math.max(top, Math.min(window.y, top + screenHeight - newHeight)),
+                                       newWidth, newHeight, true)
     }
 
     function macRestoreWindow() {
         if (macSavedWidth > 0 && window.visibility === Window.Windowed) {
-            window.x += (window.width - macSavedWidth) / 2
-            window.width = macSavedWidth
-            window.height = macSavedHeight
+            NativeChrome.setWindowGeometry(window, window.x + (window.width - macSavedWidth) / 2, window.y,
+                                           macSavedWidth, macSavedHeight, true)
         }
         macSavedWidth = 0
     }

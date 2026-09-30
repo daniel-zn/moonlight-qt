@@ -129,10 +129,7 @@ MenuBar {
             text: qsTr("Computers")
             shortcut: "Ctrl+Shift+C"
             enabled: stackView.depth > 1 && !menuBar.busy
-            onTriggered: {
-                stackView.pop(null)
-                clearOnBack = false
-            }
+            onTriggered: goHome()
         }
         MenuSeparator {}
         Action {

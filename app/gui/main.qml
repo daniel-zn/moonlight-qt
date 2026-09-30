@@ -135,7 +135,40 @@ ApplicationWindow {
         }
     }
 
+    // macOS: opening or leaving Settings resizes the window. Fade the page out, swap it
+    // and resize while nothing is showing, then fade the new page in, instead of
+    // sliding a page in and resizing it on screen.
+    SequentialAnimation {
+        id: macPageSwap
+        property var swap
+
+        NumberAnimation { target: stackView; property: "opacity"; to: 0; duration: 110; easing.type: Easing.InQuad }
+        ScriptAction { script: macPageSwap.swap() }
+        NumberAnimation { target: stackView; property: "opacity"; to: 1; duration: 160; easing.type: Easing.OutQuad }
+    }
+
+    function macSwapPages(swap) {
+        if (macPageSwap.running) {
+            return
+        }
+        macPageSwap.swap = swap
+        macPageSwap.start()
+    }
+
     function goBack() {
+        if (NativeChrome.enabled && stackView.currentItem instanceof SettingsView) {
+            macSwapPages(function() {
+                if (clearOnBack) {
+                    stackView.pop(null, StackView.Immediate)
+                    clearOnBack = false
+                }
+                else {
+                    stackView.pop(stackView.get(stackView.depth - 2), StackView.Immediate)
+                }
+            })
+            return
+        }
+
         if (clearOnBack) {
             // Pop all items except the first one
             stackView.pop(null)
@@ -270,11 +303,32 @@ ApplicationWindow {
         SdlGamepadKeyNavigation.notifyWindowFocus(visible && active)
     }
 
+    // Back to the computer list (Go > Computers)
+    function goHome() {
+        if (NativeChrome.enabled && stackView.currentItem instanceof SettingsView) {
+            macSwapPages(function() {
+                stackView.pop(null, StackView.Immediate)
+                clearOnBack = false
+            })
+            return
+        }
+
+        stackView.pop(null)
+        clearOnBack = false
+    }
+
     function navigateTo(url, objectType)
     {
         var existingItem = stackView.find(function(item, index) {
             return item instanceof objectType
         })
+
+        if (NativeChrome.enabled && objectType === SettingsView && existingItem === null) {
+            macSwapPages(function() {
+                stackView.push(url, {}, StackView.Immediate)
+            })
+            return
+        }
 
         if (existingItem !== null) {
             // Pop to the existing item

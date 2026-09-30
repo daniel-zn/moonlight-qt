@@ -260,6 +260,32 @@ void NativeChrome::attach(QQuickWindow* window)
     [backdrop release];
 }
 
+void NativeChrome::setWindowGeometry(QQuickWindow* window, qreal x, qreal y, qreal width, qreal height, bool animate)
+{
+    if (window == nullptr) {
+        return;
+    }
+
+    NSWindow* nsWindow = QGuiApplication::platformName() == QLatin1String("cocoa") ?
+                             reinterpret_cast<NSView*>(window->winId()).window : nil;
+    if (nsWindow == nil || !animate) {
+        window->setGeometry(qRound(x), qRound(y), qRound(width), qRound(height));
+        return;
+    }
+
+    // Apply the change in the content area to the whole frame (title bar and toolbar
+    // included), converting Qt's top-left origin to Cocoa's bottom-left one
+    QRect current = window->geometry();
+    NSRect frame = nsWindow.frame;
+    CGFloat top = NSMaxY(frame) - (y - current.y());
+    frame.origin.x += x - current.x();
+    frame.size.width += width - current.width();
+    frame.size.height += height - current.height();
+    frame.origin.y = top - frame.size.height;
+
+    [nsWindow setFrame:frame display:YES animate:YES];
+}
+
 QString NativeChrome::symbol(const QString& name, const QColor& color) const
 {
     return QStringLiteral("image://sfsymbol/%1/%2").arg(name, color.name(QColor::HexRgb).mid(1));
