@@ -28,6 +28,32 @@ ApplicationWindow {
     // The Settings section shown on macOS, kept while the app runs
     property string settingsSection: "video"
 
+    // macOS: the Settings page, made in the background after launch and reused, so
+    // opening Settings doesn't wait for it to be created. StackView leaves pages it was
+    // handed alive when they're popped.
+    property Item macSettingsPage: null
+    property var macSettingsIncubator: null
+
+    function macPrepareSettings() {
+        var component = Qt.createComponent("qrc:/gui/SettingsView.qml")
+        macSettingsIncubator = component.incubateObject(stackView, { "visible": false })
+    }
+
+    // The prepared page; if the background work hasn't finished yet (it runs in the
+    // window's idle time), finish it now
+    function macTakeSettingsPage() {
+        if (macSettingsPage === null && macSettingsIncubator !== null) {
+            if (macSettingsIncubator.status === Component.Loading) {
+                macSettingsIncubator.forceCompletion()
+            }
+            if (macSettingsIncubator.status === Component.Ready) {
+                macSettingsPage = macSettingsIncubator.object
+            }
+            macSettingsIncubator = null
+        }
+        return macSettingsPage
+    }
+
     // How many NavigableDialogs are open (the macOS menu bar disables itself meanwhile)
     property int openDialogs: 0
 
@@ -76,6 +102,8 @@ ApplicationWindow {
             var menuBarComponent = Qt.createComponent("MacMenuBar.qml")
             if (menuBarComponent.status === Component.Ready) {
                 window.menuBar = menuBarComponent.createObject(window)
+                // Make the Settings page once the window is up
+                Qt.callLater(macPrepareSettings)
             }
             else {
                 console.error(menuBarComponent.errorString())
@@ -142,9 +170,9 @@ ApplicationWindow {
         id: macPageSwap
         property var swap
 
-        NumberAnimation { target: stackView; property: "opacity"; to: 0; duration: 110; easing.type: Easing.InQuad }
+        NumberAnimation { target: stackView; property: "opacity"; to: 0; duration: 70; easing.type: Easing.InQuad }
         ScriptAction { script: macPageSwap.swap() }
-        NumberAnimation { target: stackView; property: "opacity"; to: 1; duration: 160; easing.type: Easing.OutQuad }
+        NumberAnimation { target: stackView; property: "opacity"; to: 1; duration: 120; easing.type: Easing.OutQuad }
     }
 
     function macSwapPages(swap) {
@@ -325,7 +353,13 @@ ApplicationWindow {
 
         if (NativeChrome.enabled && objectType === SettingsView && existingItem === null) {
             macSwapPages(function() {
-                stackView.push(url, {}, StackView.Immediate)
+                // The page made ahead of time, if it's ready (creating it takes ~150 ms)
+                if (macTakeSettingsPage() !== null) {
+                    stackView.push(macSettingsPage, {}, StackView.Immediate)
+                }
+                else {
+                    stackView.push(url, {}, StackView.Immediate)
+                }
             })
             return
         }
@@ -346,6 +380,7 @@ ApplicationWindow {
     Binding { target: NativeChrome; property: "showAddPc"; value: stackView.currentItem instanceof PcView && !chromeHidden; when: NativeChrome.enabled }
     Binding { target: NativeChrome; property: "showHelp"; value: SystemProperties.hasBrowser && !chromeHidden; when: NativeChrome.enabled }
     Binding { target: NativeChrome; property: "showSettings"; value: !chromeHidden; when: NativeChrome.enabled }
+    Binding { target: NativeChrome; property: "settingsOpen"; value: stackView.currentItem instanceof SettingsView; when: NativeChrome.enabled }
     Binding { target: NativeChrome; property: "updateText"; value: updateButton.visible ? updateButton.ToolTip.text : ""; when: NativeChrome.enabled }
 
     Connections {
@@ -353,7 +388,15 @@ ApplicationWindow {
         function onBackClicked() { goBack() }
         function onAddPcClicked() { addPcButton.clicked() }
         function onHelpClicked() { helpButton.clicked() }
-        function onSettingsClicked() { settingsButton.clicked() }
+        function onSettingsClicked() {
+            // The gear toggles Settings
+            if (stackView.currentItem instanceof SettingsView) {
+                goBack()
+            }
+            else {
+                settingsButton.clicked()
+            }
+        }
         function onUpdateClicked() { updateButton.clicked() }
     }
 

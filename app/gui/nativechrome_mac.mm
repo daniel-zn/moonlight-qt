@@ -9,6 +9,7 @@
 #include <QQuickWindow>
 
 #import <AppKit/AppKit.h>
+#import <objc/runtime.h>
 
 // Built without ARC, so ownership below is manual.
 
@@ -109,6 +110,8 @@ static NSString* const kWindowFrameName = @"MoonlightMainWindow";
     [self setItem:kAddPcItem visible:chrome->showAddPc()];
     [self setItem:kHelpItem visible:chrome->showHelp()];
     [self setItem:kSettingsItem visible:chrome->showSettings()];
+    items[kSettingsItem].image = [NSImage imageWithSystemSymbolName:chrome->settingsOpen() ? @"gearshape.fill" : @"gearshape"
+                                            accessibilityDescription:@"Settings"];
 
     QString updateText = chrome->updateText();
     [self setItem:kUpdateItem visible:!updateText.isEmpty()];
@@ -251,6 +254,17 @@ void NativeChrome::attach(QQuickWindow* window)
         return;
     }
 
+    // Window resizes (Settings growing and shrinking the window) animate at AppKit's
+    // default 0.2 s per 150 points, which is about half a second for Settings. Give
+    // Moonlight's window class a fixed, quicker duration instead.
+    static dispatch_once_t quickResize;
+    dispatch_once(&quickResize, ^{
+        IMP quick = imp_implementationWithBlock(^NSTimeInterval(id, NSRect) {
+            return 0.18;
+        });
+        class_replaceMethod([nsWindow class], @selector(animationResizeTime:), quick, "d@:{CGRect={CGPoint=dd}{CGSize=dd}}");
+    });
+
     // Reopen where the window was last time (setting the name restores the saved frame),
     // unless the user asked for a maximized or full-screen window
     if (window->visibility() == QWindow::Windowed) {
@@ -305,7 +319,9 @@ void NativeChrome::setWindowGeometry(QQuickWindow* window, qreal x, qreal y, qre
 
     NSWindow* nsWindow = QGuiApplication::platformName() == QLatin1String("cocoa") ?
                              reinterpret_cast<NSView*>(window->winId()).window : nil;
-    if (nsWindow == nil || !animate) {
+    // AppKit only runs the animation on a live display: on a hidden window (screen locked,
+    // display asleep) the call would block waiting for it, so just move it there
+    if (nsWindow == nil || !animate || !(nsWindow.occlusionState & NSWindowOcclusionStateVisible)) {
         window->setGeometry(qRound(x), qRound(y), qRound(width), qRound(height));
         return;
     }

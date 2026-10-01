@@ -19,6 +19,8 @@ class NativeChrome : public QObject
     Q_PROPERTY(bool showAddPc READ showAddPc WRITE setShowAddPc NOTIFY showAddPcChanged)
     Q_PROPERTY(bool showHelp READ showHelp WRITE setShowHelp NOTIFY showHelpChanged)
     Q_PROPERTY(bool showSettings READ showSettings WRITE setShowSettings NOTIFY showSettingsChanged)
+    // Settings is showing: the gear is drawn filled, and clicking it closes Settings
+    Q_PROPERTY(bool settingsOpen READ settingsOpen WRITE setSettingsOpen NOTIFY settingsOpenChanged)
     Q_PROPERTY(QString updateText READ updateText WRITE setUpdateText NOTIFY updateTextChanged)
 
 public:
@@ -38,6 +40,8 @@ public:
     void setShowHelp(bool show);
     bool showSettings() const { return m_ShowSettings; }
     void setShowSettings(bool show);
+    bool settingsOpen() const { return m_SettingsOpen; }
+    void setSettingsOpen(bool open);
     QString updateText() const { return m_UpdateText; }
     void setUpdateText(const QString& text);
 
@@ -67,6 +71,7 @@ signals:
     void showAddPcChanged();
     void showHelpChanged();
     void showSettingsChanged();
+    void settingsOpenChanged();
     void updateTextChanged();
 
     void backClicked();
@@ -82,6 +87,7 @@ private:
     bool m_ShowAddPc = false;
     bool m_ShowHelp = false;
     bool m_ShowSettings = true;
+    bool m_SettingsOpen = false;
     QString m_UpdateText;
     void* m_Native = nullptr;  // Platform state (the toolbar delegate on macOS)
 };

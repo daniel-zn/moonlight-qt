@@ -39,6 +39,15 @@ void NativeChrome::setShowSettings(bool show)
     }
 }
 
+void NativeChrome::setSettingsOpen(bool open)
+{
+    if (m_SettingsOpen != open) {
+        m_SettingsOpen = open;
+        updateToolbar();
+        emit settingsOpenChanged();
+    }
+}
+
 void NativeChrome::setUpdateText(const QString& text)
 {
     if (m_UpdateText != text) {
