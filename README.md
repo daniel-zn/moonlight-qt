@@ -13,7 +13,7 @@ You can follow development on our [Discord server](https://moonlight-stream.org/
 ## About this fork
 
 > [!NOTE]
-> This is a personal fork (`daniel-zn/moonlight-qt`, default branch `mic-passthrough`) made to pair with
+> This is a personal fork (`daniel-zn/moonlight-qt`, default branch `main`) made to pair with
 > [daniel-zn/Apollo](https://github.com/daniel-zn/Apollo). It doesn't follow upstream updates.
 
 What it adds on top of upstream Moonlight:
